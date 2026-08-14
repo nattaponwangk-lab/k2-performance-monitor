@@ -32,6 +32,10 @@ public class MonitorDbContext : DbContext
     public DbSet<AlertRuleEntity> AlertRules => Set<AlertRuleEntity>();
     public DbSet<CollectorRunEntity> CollectorRuns => Set<CollectorRunEntity>();
 
+    // Auth + multi-instance
+    public DbSet<AppUserEntity> Users => Set<AppUserEntity>();
+    public DbSet<MonitoredInstanceEntity> MonitoredInstances => Set<MonitoredInstanceEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

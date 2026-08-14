@@ -3,7 +3,10 @@ using Hangfire.SqlServer;
 using K2PerfMonitor.Core.Options;
 using K2PerfMonitor.Data;
 using K2PerfMonitor.Web.Components;
+using K2PerfMonitor.Web.Security;
 using K2PerfMonitor.Web.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
@@ -44,6 +47,31 @@ builder.Services.AddScoped<ServerStatsService>();   // Overview + CPU/RAM
 builder.Services.AddScoped<MetricQueryService>();   // SQL metric pages
 builder.Services.AddScoped<AlertService>();         // Alerts + acknowledge
 
+// ---- Auth / RBAC (Phase 8) ----
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<InstanceService>();
+// Data Protection — persist keys ให้ cookie/credential ถอดรหัสได้ข้าม restart/instance
+var keyPath = builder.Configuration["DataProtection:KeyPath"]
+    ?? Path.Combine(builder.Environment.ContentRootPath, "keys");
+Directory.CreateDirectory(keyPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
+    .SetApplicationName("K2PerfMonitor");
+
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.AccessDeniedPath = "/login";
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.Name = "K2PM.Auth";
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+
 // Health checks — liveness (process) + readiness (Monitoring DB)
 builder.Services.AddHealthChecks()
     .AddCheck<MonitorDbHealthCheck>("monitor-db", tags: new[] { "ready" });
@@ -77,6 +105,17 @@ using (var scope = app.Services.CreateScope())
     {
         Log.Warning(ex, "Could not apply migrations on Web startup — will rely on Worker (dashboard may be degraded until DB ready)");
     }
+
+    // seed admin คนแรกจาก config (ถ้ายังไม่มีผู้ใช้)
+    try
+    {
+        var userSvc = scope.ServiceProvider.GetRequiredService<UserService>();
+        await userSvc.SeedAdminAsync(builder.Configuration["Auth:InitialAdminPassword"]);
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Could not seed initial admin user");
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -85,17 +124,24 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+app.MapAuthEndpoints();
+
 // SignalR hub — real-time metric/alert relay
 app.MapHub<K2PerfMonitor.Realtime.MonitorHub>("/hubs/monitor");
 
-// Hangfire dashboard — เข้าถึงได้จากเครื่อง local เท่านั้นตาม default (Phase 8 จะผูก RBAC)
-app.UseHangfireDashboard("/hangfire");
+// Hangfire dashboard — เฉพาะ Admin (RBAC)
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new AdminDashboardAuthorizationFilter() }
+});
 
 // /health = ทุก check · /health/live = process ยังอยู่ (ไม่แตะ DB) · /health/ready = พร้อมรับงาน (DB ต่อได้)
 app.MapHealthChecks("/health");

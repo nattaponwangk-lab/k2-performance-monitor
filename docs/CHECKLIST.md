@@ -78,11 +78,11 @@
 - [ ] K2SmartObjectCollector (SMO call time)
 - [ ] แทน mock 3 หน้า K2 (Workflows/SmartForms/SmartObjects)
 
-## Phase 8 — Auth, RBAC & Multi-Instance
-- [ ] Login (user/password) + role Admin/Operator/Viewer
-- [ ] จำกัดสิทธิ์ Settings + Alert-rule (Admin only)
-- [ ] รองรับหลาย SQL/K2 instance (เลือกดูรายเครื่อง)
-- [ ] เข้ารหัส credential (Data Protection) — ห้าม plaintext/log
+## Phase 8 — Auth, RBAC & Multi-Instance  🟡 (2026-08-14)
+- [x] Login (cookie auth, PBKDF2 password hash) + role Admin/Operator/Viewer + seed admin จาก config (ไม่ใช้ default password)
+- [x] จำกัดสิทธิ์ Settings + Instances + Hangfire dashboard (Admin only) · global `[Authorize]` + redirect login · verified (302/200 ตาม role)
+- [x] เข้ารหัส credential (Data Protection `IDataProtector`) — ไม่ plaintext/ไม่ log · instance registry + admin UI (add/enable/delete)
+- [~] รองรับหลาย SQL/K2 instance — **registry + encrypted credentials + UI พร้อม** · การ collect ต่อ instance (fan-out worker + tag InstanceId บน metric) เป็น **scoped follow-up** (ปัจจุบัน collect จาก SourceDb ที่ config); ดู PROJECT_STATE "Known deviations"
 
 ## Phase 9 — Packaging, Deploy & Observability  🟡 (2026-08-14)
 - [x] Dockerfile (web + worker) — multi-stage, non-root, .NET 9 runtime · **worker image build ผ่าน**

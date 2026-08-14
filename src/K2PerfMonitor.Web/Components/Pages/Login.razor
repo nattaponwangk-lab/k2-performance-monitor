@@ -1,0 +1,33 @@
+@page "/login"
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+<PageTitle>เข้าสู่ระบบ — K2 Performance Monitor</PageTitle>
+
+<div class="login-wrap">
+    <form class="login-card" method="post" action="/account/login">
+        <div class="login-brand"><span class="brand-dot"></span> K2 Performance Monitor</div>
+        <div class="login-sub">เข้าสู่ระบบเพื่อดู dashboard</div>
+
+        @if (HasError)
+        {
+            <div class="login-error">⚠ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+        }
+
+        <label>ชื่อผู้ใช้</label>
+        <input class="inp login-inp" name="username" autocomplete="username" autofocus required />
+
+        <label>รหัสผ่าน</label>
+        <input class="inp login-inp" name="password" type="password" autocomplete="current-password" required />
+
+        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+        <button class="btn login-btn" type="submit">เข้าสู่ระบบ</button>
+    </form>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
+    private bool HasError => !string.IsNullOrEmpty(Error);
+}

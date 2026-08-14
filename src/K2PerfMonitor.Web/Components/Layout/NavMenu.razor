@@ -86,10 +86,39 @@
                 <span class="ico">🚨</span> Alerts
             </NavLink>
         </div>
-        <div class="nav-item">
-            <NavLink class="nav-link" href="settings">
-                <span class="ico">⚙️</span> Settings
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="Admin">
+            <div class="nav-item">
+                <NavLink class="nav-link" href="instances">
+                    <span class="ico">🖥️</span> Instances
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="settings">
+                    <span class="ico">⚙️</span> Settings
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="hangfire" Match="NavLinkMatch.Prefix">
+                    <span class="ico">🧰</span> Jobs (Hangfire)
+                </NavLink>
+            </div>
+        </AuthorizeView>
     </nav>
 </div>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="nav-user">
+            <div>👤 <strong>@context.User.Identity?.Name</strong></div>
+            <div class="muted" style="font-size:.75rem">@RoleOf(context)</div>
+            <form method="post" action="/account/logout">
+                <button class="logout-btn" type="submit">ออกจากระบบ</button>
+            </form>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static string RoleOf(Microsoft.AspNetCore.Components.Authorization.AuthenticationState ctx)
+        => ctx.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Viewer";
+}

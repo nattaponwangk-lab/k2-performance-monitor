@@ -1,6 +1,22 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <LayoutView Layout="typeof(Layout.MainLayout)">
+                        <div class="panel"><div class="empty">🔒 คุณไม่มีสิทธิ์เข้าถึงหน้านี้ (ต้องเป็น Admin)</div></div>
+                    </LayoutView>
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div class="empty">⏳ กำลังตรวจสอบสิทธิ์...</div>
+            </Authorizing>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

@@ -1,0 +1,84 @@
+@page "/instances"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using K2PerfMonitor.Web.Security
+@inject InstanceService InstanceSvc
+
+<PageTitle>Instances — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🖥️ Monitored Instances</h1>
+        <div class="desc">SQL/K2 instance ที่ระบบ monitor — connection string ถูก <strong>เข้ารหัส</strong> (Data Protection) ไม่แสดง plaintext</div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <div class="panel-title">เพิ่ม instance</div>
+    <div style="display:grid; grid-template-columns: 1fr 120px 1fr 2fr auto; gap:8px; align-items:end;">
+        <div><label class="lbl">ชื่อ</label><input class="inp" @bind="name" placeholder="PROD-SQL-01" /></div>
+        <div><label class="lbl">ประเภท</label>
+            <select class="inp" @bind="type">
+                <option value="Sql">SQL</option>
+                <option value="K2">K2</option>
+            </select>
+        </div>
+        <div><label class="lbl">Host</label><input class="inp" @bind="host" placeholder="sqlprod01" /></div>
+        <div><label class="lbl">Connection string (จะถูกเข้ารหัส)</label><input class="inp" @bind="conn" type="password" placeholder="Server=...;Database=...;User Id=...;Password=..." /></div>
+        <button class="btn btn-sm btn-outline-light" @onclick="Add">➕ เพิ่ม</button>
+    </div>
+    @if (!string.IsNullOrEmpty(error)) { <div class="login-error" style="margin-top:10px">@error</div> }
+</div>
+
+<div class="panel">
+    @if (rows is null) { <div class="empty">⏳ กำลังโหลด...</div> }
+    else if (rows.Count == 0) { <div class="empty">ยังไม่มี instance — เพิ่มด้านบน</div> }
+    else
+    {
+        <table class="tbl">
+            <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>Host</th><th>สถานะ</th><th>สร้างเมื่อ</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var i in rows)
+                {
+                    <tr>
+                        <td><strong>@i.Name</strong></td>
+                        <td><span class="badge badge-info">@i.Type</span></td>
+                        <td class="mono">@i.Host</td>
+                        <td><span class="badge badge-@(i.Enabled?"ok":"warning")">@(i.Enabled ? "Enabled" : "Disabled")</span></td>
+                        <td class="mono">@i.CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-light" @onclick="() => Toggle(i)">@(i.Enabled ? "Disable" : "Enable")</button>
+                            <button class="btn btn-sm btn-outline-light" @onclick="() => Delete(i.Id)">🗑</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<InstanceView>? rows;
+    private string name = "", host = "", conn = "", type = "Sql", error = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { rows = null; rows = await InstanceSvc.GetAllAsync(); }
+
+    private async Task Add()
+    {
+        error = "";
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(conn)) { error = "ต้องกรอกชื่อและ connection string"; return; }
+        try
+        {
+            var t = type == "K2" ? Core.Enums.InstanceType.K2 : Core.Enums.InstanceType.Sql;
+            await InstanceSvc.AddAsync(name.Trim(), t, string.IsNullOrWhiteSpace(host) ? null : host.Trim(), conn);
+            name = host = conn = ""; type = "Sql";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Toggle(InstanceView i) { await InstanceSvc.SetEnabledAsync(i.Id, !i.Enabled); await Load(); }
+    private async Task Delete(long id) { await InstanceSvc.DeleteAsync(id); await Load(); }
+}

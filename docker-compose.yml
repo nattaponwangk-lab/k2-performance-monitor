@@ -52,6 +52,11 @@ services:
       ConnectionStrings__MonitorDb: "Server=sqlserver;Database=K2PerfMonitor;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       ConnectionStrings__SourceDb:  "Server=sqlserver;Database=master;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       ConnectionStrings__K2Db:      "Server=sqlserver;Database=master;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
+      # สร้าง admin คนแรก (เปลี่ยนรหัสหลัง login ครั้งแรก) + persist Data Protection keys
+      Auth__InitialAdminPassword: "${ADMIN_INITIAL_PASSWORD:?set ADMIN_INITIAL_PASSWORD in .env}"
+      DataProtection__KeyPath: "/app/keys"
+    volumes:
+      - dp-keys:/app/keys
     ports:
       - "8080:8080"
     healthcheck:
@@ -64,3 +69,4 @@ services:
 
 volumes:
   mssql-data:
+  dp-keys:
