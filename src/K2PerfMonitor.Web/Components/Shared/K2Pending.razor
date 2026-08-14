@@ -1,0 +1,19 @@
+@* แสดงสถานะ K2 collector ที่ยังรอการยืนยันแหล่งข้อมูล (Phase 7) — ไม่ใช้ mock *@
+<div class="panel">
+    <div class="empty" style="text-align:left; line-height:1.7;">
+        <div style="font-size:1.4rem; margin-bottom:8px;">🔄 @Title</div>
+        <p><span class="badge badge-warning">รอการยืนยันแหล่งข้อมูล K2</span></p>
+        <p>@Description</p>
+        <p style="opacity:.8; font-size:.85rem;">
+            K2 collector (<code>@Collector</code>) ถูกออกแบบไว้แล้วแต่ <strong>ปิดใช้งานโดย default</strong>
+            จนกว่าจะยืนยัน schema/endpoint จริงของ K2 instance ในองค์กร (ดู <code>docs/collectors.md → K2</code> และ Phase 7).
+            เมื่อยืนยันแหล่งข้อมูลและเปิด collector แล้ว หน้านี้จะแสดงข้อมูลจริงจาก Monitoring DB โดยอัตโนมัติ
+        </p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string Collector { get; set; } = "";
+}

@@ -1,46 +1,71 @@
 @page "/io"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
-<PageTitle>I/O — K2 Performance Monitor</PageTitle>
+<PageTitle>I/O Statistics — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
-        <h1>💾 I/O Statistics</h1>
-        <div class="desc">ค่า stall time ต่อ I/O operation — จาก <code>sys.dm_io_virtual_file_stats</code></div>
+        <h1>💽 I/O Statistics</h1>
+        <div class="desc">Latency ระดับไฟล์ (delta) จาก <code>sys.dm_io_virtual_file_stats</code> — stall ต่อ operation
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 database / file" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
 </div>
 
 <div class="panel">
-    <table class="tbl">
-        <thead><tr>
-            <th>Database</th><th>File</th><th>Type</th>
-            <th style="text-align:right">Reads</th><th style="text-align:right">Writes</th>
-            <th style="text-align:right">Read Stall ms</th><th style="text-align:right">Write Stall ms</th>
-        </tr></thead>
-        <tbody>
-            @foreach (var r in rows)
-            {
-                var readColor = r.IoStallMsPerRead > 20 ? "var(--warn)" : r.IoStallMsPerRead > 50 ? "var(--crit)" : "var(--ok)";
-                <tr>
-                    <td class="mono">@r.DatabaseName</td>
-                    <td class="mono">@r.LogicalFileName</td>
-                    <td><span class="badge badge-info">@r.FileType</span></td>
-                    <td style="text-align:right" class="mono">@r.NumOfReads.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@r.NumOfWrites.ToString("N0")</td>
-                    <td style="text-align:right; color:@readColor" class="mono">
-                        <span class="badge @(r.Severity==Core.Enums.Severity.Warning?"badge-warning":"badge-ok")">@r.IoStallMsPerRead.ToString("0.0")</span>
-                    </td>
-                    <td style="text-align:right" class="mono">@r.IoStallMsPerWrite.ToString("0.0")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <StatusView T="IoStatVm" Result="result">
+        @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+        <table class="tbl">
+            <thead><tr>
+                <th>Severity</th>
+                <th class="sortable" @onclick='() => grid.ToggleSort("db")'>Database@(grid.SortIndicator("db"))</th>
+                <th>File</th><th>Type</th>
+                <th style="text-align:right">Reads</th><th style="text-align:right">Writes</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("read")'>ms/read@(grid.SortIndicator("read"))</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("write")'>ms/write@(grid.SortIndicator("write"))</th>
+            </tr></thead>
+            <tbody>
+                @foreach (var io in rows)
+                {
+                    <tr>
+                        <td><span class="badge badge-@(io.Severity.ToString().ToLower())">@io.Severity</span></td>
+                        <td>@io.DatabaseName</td>
+                        <td class="mono">@io.LogicalFileName</td>
+                        <td>@io.FileType</td>
+                        <td style="text-align:right" class="mono">@io.NumOfReads.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@io.NumOfWrites.ToString("N0")</td>
+                        <td style="text-align:right" class="mono @(io.IoStallMsPerRead > 20 ? "sev-warning" : "")">@io.IoStallMsPerRead.ToString("0.0")</td>
+                        <td style="text-align:right" class="mono @(io.IoStallMsPerWrite > 20 ? "sev-warning" : "")">@io.IoStallMsPerWrite.ToString("0.0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+    </StatusView>
 </div>
 
 @code {
-    private List<IoStatVm> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetIoStats();
+    private QueryResult<IoStatVm>? result;
+    private readonly GridState<IoStatVm> grid = new(
+        io => $"{io.DatabaseName} {io.LogicalFileName}",
+        new() { ["db"] = io => io.DatabaseName ?? "", ["read"] = io => io.IoStallMsPerRead, ["write"] = io => io.IoStallMsPerWrite }, "read");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetIoStatsAsync(); }
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("Database", io => io.DatabaseName), ("File", io => io.LogicalFileName), ("Type", io => io.FileType),
+            ("Reads", io => io.NumOfReads), ("Writes", io => io.NumOfWrites), ("MsPerRead", io => io.IoStallMsPerRead), ("MsPerWrite", io => io.IoStallMsPerWrite));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"io-stats-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
 }

@@ -62,11 +62,13 @@
 - [ ] push metric ล่าสุด + alert ใหม่ (throttle + backpressure)
 - [ ] Web subscribe live — Overview/CPU-RAM auto-update
 
-## Phase 6 — Web: แทน Mock ด้วยข้อมูลจริง
-- [ ] SlowQueries  - [ ] ExecutionPlans  - [ ] WaitStats  - [ ] Blockings
-- [ ] Deadlocks  - [ ] Indexes  - [ ] Io  - [ ] StoredProcedures  - [ ] Alerts
-- [ ] Filter/sort/paging + drill-down + export CSV
-- [ ] ลบ `MockDataService` ออก
+## Phase 6 — Web: แทน Mock ด้วยข้อมูลจริง  ✅ (2026-08-14)
+- [x] SlowQueries  - [x] ExecutionPlans  - [x] WaitStats  - [x] Blockings
+- [x] Deadlocks  - [x] Indexes  - [x] Io  - [x] StoredProcedures  - [x] Alerts (จริงจาก DB + acknowledge)
+- [x] Filter (search + type) / sort (คลิกหัวคอลัมน์) / paging + drill-down (query/plan/deadlock/blocking) + export CSV (ทุกหน้า)
+- [x] Loading / Empty / Error / Unavailable states (StatusView) ครบทุกหน้า
+- [x] **ลบ `MockDataService` ออกแล้ว** · หน้า K2 3 หน้าแสดงสถานะ "รอ verify K2 source" (ไม่ใช้ mock)
+- [x] Verify: รัน Worker เก็บข้อมูลจริงบน LocalDB → เปิด Web เห็น real data (CPU 32%, 240 slow queries, alert จริง)
 
 ## Phase 7 — K2-Specific Monitoring
 - [ ] **Spike/PoC:** ยืนยันแหล่งข้อมูล K2 (host DB / runtime / API)

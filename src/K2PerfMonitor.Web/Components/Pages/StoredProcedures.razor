@@ -1,47 +1,73 @@
 @page "/stored-procedures"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
 <PageTitle>Stored Procedures — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>⚙️ Stored Procedures</h1>
-        <div class="desc">Stored procedure ที่ทำงานช้า — จาก <code>sys.dm_exec_procedure_stats</code></div>
+        <div class="desc">SP ที่ทำงานช้า จาก <code>sys.dm_exec_procedure_stats</code>
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 proc / database" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
 </div>
 
 <div class="panel">
-    <table class="tbl">
-        <thead><tr>
-            <th>Severity</th><th>Procedure</th><th>Database</th>
-            <th style="text-align:right">Executions</th>
-            <th style="text-align:right">Avg ms</th>
-            <th style="text-align:right">Max ms</th>
-            <th style="text-align:right">Avg Reads</th>
-            <th>Last Exec</th>
-        </tr></thead>
-        <tbody>
-            @foreach (var r in rows)
-            {
-                <tr>
-                    <td><span class="badge badge-@(r.Severity.ToString().ToLower())">@r.Severity</span></td>
-                    <td class="mono">@r.ObjectName</td>
-                    <td>@r.DatabaseName</td>
-                    <td style="text-align:right" class="mono">@r.ExecutionCount.ToString("N0")</td>
-                    <td style="text-align:right" class="mono @(r.Severity==Core.Enums.Severity.Critical?"sev-critical":"")">@r.AvgElapsedMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@r.MaxElapsedMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@r.AvgLogicalReads.ToString("N0")</td>
-                    <td class="mono">@r.LastExecutionUtc?.ToLocalTime().ToString("HH:mm:ss")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <StatusView T="StoredProcedureVm" Result="result">
+        @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+        <table class="tbl">
+            <thead><tr>
+                <th>Severity</th>
+                <th class="sortable" @onclick='() => grid.ToggleSort("name")'>Procedure@(grid.SortIndicator("name"))</th>
+                <th>DB</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("exec")'>Executions@(grid.SortIndicator("exec"))</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("avg")'>Avg ms@(grid.SortIndicator("avg"))</th>
+                <th style="text-align:right">Max ms</th>
+                <th style="text-align:right">Avg Reads</th>
+                <th>Last Exec</th>
+            </tr></thead>
+            <tbody>
+                @foreach (var sp in rows)
+                {
+                    <tr>
+                        <td><span class="badge badge-@(sp.Severity.ToString().ToLower())">@sp.Severity</span></td>
+                        <td class="mono">@sp.ObjectName</td>
+                        <td>@sp.DatabaseName</td>
+                        <td style="text-align:right" class="mono">@sp.ExecutionCount.ToString("N0")</td>
+                        <td style="text-align:right" class="mono @(sp.Severity==Core.Enums.Severity.Critical?"sev-critical":sp.Severity==Core.Enums.Severity.Warning?"sev-warning":"")">@sp.AvgElapsedMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@sp.MaxElapsedMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@sp.AvgLogicalReads.ToString("N0")</td>
+                        <td class="mono">@(sp.LastExecutionUtc?.ToLocalTime().ToString("HH:mm:ss") ?? "-")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+    </StatusView>
 </div>
 
 @code {
-    private List<StoredProcedureVm> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetStoredProcedures();
+    private QueryResult<StoredProcedureVm>? result;
+    private readonly GridState<StoredProcedureVm> grid = new(
+        sp => $"{sp.ObjectName} {sp.DatabaseName}",
+        new() { ["name"] = sp => sp.ObjectName ?? "", ["exec"] = sp => sp.ExecutionCount, ["avg"] = sp => sp.AvgElapsedMs }, "avg");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetStoredProceduresAsync(); }
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("Procedure", sp => sp.ObjectName), ("Database", sp => sp.DatabaseName), ("Executions", sp => sp.ExecutionCount),
+            ("AvgMs", sp => sp.AvgElapsedMs), ("MaxMs", sp => sp.MaxElapsedMs), ("AvgReads", sp => sp.AvgLogicalReads));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"stored-procedures-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
 }

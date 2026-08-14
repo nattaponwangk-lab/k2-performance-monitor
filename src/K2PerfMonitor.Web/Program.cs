@@ -36,9 +36,10 @@ builder.Services.AddRazorComponents()
 builder.Services.AddDbContextFactory<MonitorDbContext>(options =>
     options.UseSqlServer(monitorConn));
 
-// Services
-builder.Services.AddSingleton<MockDataService>();   // สำหรับหน้าที่ยังเป็น mock
-builder.Services.AddScoped<ServerStatsService>();   // ข้อมูลจริงสำหรับ Overview + CPU/RAM
+// Services — ข้อมูลจริงจาก Monitoring DB (แทน MockDataService ทั้งหมด — Phase 6)
+builder.Services.AddScoped<ServerStatsService>();   // Overview + CPU/RAM
+builder.Services.AddScoped<MetricQueryService>();   // SQL metric pages
+builder.Services.AddScoped<AlertService>();         // Alerts + acknowledge
 
 // Health checks (/health) — ตรวจการเชื่อมต่อ Monitoring DB
 builder.Services.AddHealthChecks()

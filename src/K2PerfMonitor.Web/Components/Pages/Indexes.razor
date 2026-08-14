@@ -1,67 +1,82 @@
 @page "/indexes"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
-<PageTitle>Indexes — K2 Performance Monitor</PageTitle>
+<PageTitle>Index Recommendations — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
-        <h1>📇 Index Recommendations</h1>
-        <div class="desc">Missing index ที่ควรสร้าง + Unused index ที่ควรลบ — จาก <code>sys.dm_db_missing_index_*</code> + <code>sys.dm_db_index_usage_stats</code></div>
+        <h1>🔑 Index Recommendations</h1>
+        <div class="desc">Missing (impact) + Unused index จาก DMV
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
     </div>
-    <div class="btn-group">
-        <button class="btn btn-sm btn-outline-light @(tab=="Missing"?"active":"")" @onclick="@(() => SetTab("Missing"))">Missing (@missing.Count)</button>
-        <button class="btn btn-sm btn-outline-light @(tab=="Unused"?"active":"")" @onclick="@(() => SetTab("Unused"))">Unused (@unused.Count)</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 table / database" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light @(typeFilter==""?"active":"")" @onclick='() => SetType("")'>ทั้งหมด</button>
+        <button class="btn btn-sm btn-outline-light @(typeFilter=="Missing"?"active":"")" @onclick='() => SetType("Missing")'>Missing</button>
+        <button class="btn btn-sm btn-outline-light @(typeFilter=="Unused"?"active":"")" @onclick='() => SetType("Unused")'>Unused</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
     </div>
 </div>
 
-@if (tab == "Missing")
-{
-    <div class="panel">
+<div class="panel">
+    <StatusView T="IndexRecommendationVm" Result="result">
+        @{
+            var filteredByType = typeFilter == "" ? result!.Items : result!.Items.Where(x => x.RecommendationType == typeFilter).ToList();
+            var all = grid.Filtered(filteredByType);
+            var rows = grid.PageOf(all);
+        }
         <table class="tbl">
-            <thead><tr><th>Table</th><th>Equality</th><th>Include</th><th style="text-align:right">Impact</th><th style="text-align:right">Seeks</th><th>Script</th></tr></thead>
+            <thead><tr>
+                <th>Type</th><th>DB</th>
+                <th class="sortable" @onclick='() => grid.ToggleSort("table")'>Table@(grid.SortIndicator("table"))</th>
+                <th>Columns / Index</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("impact")'>Impact@(grid.SortIndicator("impact"))</th>
+                <th style="text-align:right">Seeks/Scans</th>
+                <th>Script</th>
+            </tr></thead>
             <tbody>
-                @foreach (var r in missing)
+                @foreach (var ix in rows)
                 {
                     <tr>
-                        <td class="mono">@r.DatabaseName · @r.TableName</td>
-                        <td class="mono sev-info">@r.EqualityColumns</td>
-                        <td class="mono sev-info">@r.IncludedColumns</td>
-                        <td style="text-align:right"><span class="@(r.Impact>80?"sev-warning":"")"><strong>@r.Impact.ToString("0")%</strong></span></td>
-                        <td style="text-align:right" class="mono">@r.UserSeeks.ToString("N0")</td>
-                        <td><div class="code-block">@r.RecommendationScript</div></td>
+                        <td><span class="badge badge-@(ix.RecommendationType=="Missing"?"warning":"info")">@ix.RecommendationType</span></td>
+                        <td>@ix.DatabaseName</td>
+                        <td class="mono">@ix.TableName</td>
+                        <td class="mono" style="font-size:.78rem">@(ix.RecommendationType == "Missing" ? $"{ix.EqualityColumns} {ix.InequalityColumns}".Trim() : ix.IndexName)</td>
+                        <td style="text-align:right" class="mono">@(ix.RecommendationType == "Missing" ? ix.Impact.ToString("0") + "%" : "-")</td>
+                        <td style="text-align:right" class="mono">@ix.UserSeeks.ToString("N0")/@ix.UserScans.ToString("N0")</td>
+                        <td><code style="font-size:.72rem">@Trunc(ix.RecommendationScript, 60)</code></td>
                     </tr>
                 }
             </tbody>
         </table>
-    </div>
-}
-else
-{
-    <div class="panel">
-        <table class="tbl">
-            <thead><tr><th>Table</th><th>Index</th><th style="text-align:right">Seeks</th><th style="text-align:right">Scans</th><th>Script</th></tr></thead>
-            <tbody>
-                @foreach (var r in unused)
-                {
-                    <tr>
-                        <td class="mono">@r.DatabaseName · @r.TableName</td>
-                        <td class="mono">@r.IndexName</td>
-                        <td style="text-align:right" class="mono">@r.UserSeeks</td>
-                        <td style="text-align:right" class="mono">@r.UserScans</td>
-                        <td><div class="code-block">@r.RecommendationScript</div></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
+        <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+    </StatusView>
+</div>
 
 @code {
-    private string tab = "Missing";
-    private List<IndexRecommendationVm> all = new();
-    private List<IndexRecommendationVm> missing => all.Where(x => x.RecommendationType == "Missing").OrderByDescending(x => x.Impact).ToList();
-    private List<IndexRecommendationVm> unused => all.Where(x => x.RecommendationType == "Unused").ToList();
-    protected override void OnInitialized() => all = Mock.GetIndexRecommendations();
-    private void SetTab(string t) => tab = t;
+    private QueryResult<IndexRecommendationVm>? result;
+    private string typeFilter = "";
+    private readonly GridState<IndexRecommendationVm> grid = new(
+        ix => $"{ix.TableName} {ix.DatabaseName} {ix.IndexName}",
+        new() { ["table"] = ix => ix.TableName ?? "", ["impact"] = ix => ix.Impact }, "impact");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetIndexRecommendationsAsync(); }
+    private void SetType(string t) => typeFilter = t;
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("Type", ix => ix.RecommendationType), ("Database", ix => ix.DatabaseName), ("Table", ix => ix.TableName),
+            ("Equality", ix => ix.EqualityColumns), ("Included", ix => ix.IncludedColumns), ("IndexName", ix => ix.IndexName),
+            ("Impact", ix => ix.Impact), ("Script", ix => ix.RecommendationScript));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"index-recommendations-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
+
+    private static string Trunc(string? s, int n) => string.IsNullOrEmpty(s) ? "" : s.Length <= n ? s : s[..n] + "…";
 }

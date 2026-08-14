@@ -1,55 +1,71 @@
 @page "/wait-stats"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
 <PageTitle>Wait Statistics — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>⏳ Wait Statistics</h1>
-        <div class="desc">เวลาที่ SQL Server รอ resource — จาก <code>sys.dm_os_wait_stats</code> (กรอง benign waits ออกแล้ว)</div>
+        <div class="desc">Wait ที่สำคัญ (delta) จาก <code>sys.dm_os_wait_stats</code> — กรอง benign แล้ว
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
     </div>
-    <div class="btn-group">
-        <button class="btn btn-sm btn-outline-light @(!showBenign?"active":"")" @onclick="()=>showBenign=false">เฉพาะที่น่ากังวล</button>
-        <button class="btn btn-sm btn-outline-light @(showBenign?"active":"")" @onclick="()=>showBenign=true">ทั้งหมด</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 wait type / category" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
     </div>
 </div>
 
 <div class="panel">
-    <table class="tbl">
-        <thead>
-            <tr>
-                <th>Wait Type</th><th>Category</th>
-                <th style="text-align:right">Tasks</th>
-                <th style="text-align:right">Wait ms</th>
+    <StatusView T="WaitStatVm" Result="result">
+        @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+        <table class="tbl">
+            <thead><tr>
+                <th class="sortable" @onclick='() => grid.ToggleSort("type")'>Wait Type@(grid.SortIndicator("type"))</th>
+                <th>Category</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("time")'>Wait ms@(grid.SortIndicator("time"))</th>
                 <th style="text-align:right">Signal ms</th>
+                <th style="text-align:right">Max ms</th>
+                <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("tasks")'>Tasks@(grid.SortIndicator("tasks"))</th>
                 <th style="text-align:right">%</th>
-                <th style="width:160px">สัดส่วน</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var w in Filtered)
-            {
-                <tr>
-                    <td class="mono">@w.WaitType</td>
-                    <td><span class="badge @(w.IsBenign?"badge-info":"badge-warning")">@w.Category</span></td>
-                    <td style="text-align:right" class="mono">@w.WaitingTasksCount.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@w.WaitTimeMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@w.SignalWaitTimeMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@w.WaitPercent.ToString("0.0")%</td>
-                    <td>
-                        <div class="bar"><span style="width:@(Math.Min(w.WaitPercent*3,100))%; background:@(w.WaitPercent>15?"var(--warn)":"var(--accent)")"></span></div>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+            </tr></thead>
+            <tbody>
+                @foreach (var w in rows)
+                {
+                    <tr>
+                        <td class="mono">@w.WaitType</td>
+                        <td><span class="badge badge-info">@w.Category</span></td>
+                        <td style="text-align:right" class="mono">@w.WaitTimeMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@w.SignalWaitTimeMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@w.MaxWaitTimeMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@w.WaitingTasksCount.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@w.WaitPercent.ToString("0.0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+    </StatusView>
 </div>
 
 @code {
-    private List<WaitStatVm> rows = new();
-    private bool showBenign = false;
-    protected override void OnInitialized() => rows = Mock.GetWaitStats();
-    private void Load() => rows = Mock.GetWaitStats();
-    private IReadOnlyList<WaitStatVm> Filtered => showBenign ? rows : rows.Where(x => !x.IsBenign).ToList();
+    private QueryResult<WaitStatVm>? result;
+    private readonly GridState<WaitStatVm> grid = new(
+        w => $"{w.WaitType} {w.Category}",
+        new() { ["type"] = w => w.WaitType, ["time"] = w => w.WaitTimeMs, ["tasks"] = w => w.WaitingTasksCount }, "time");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetWaitStatsAsync(); }
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("WaitType", w => w.WaitType), ("Category", w => w.Category), ("WaitMs", w => w.WaitTimeMs),
+            ("SignalMs", w => w.SignalWaitTimeMs), ("MaxMs", w => w.MaxWaitTimeMs), ("Tasks", w => w.WaitingTasksCount), ("Percent", w => w.WaitPercent));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"wait-stats-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
 }

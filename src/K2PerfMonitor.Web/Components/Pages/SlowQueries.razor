@@ -1,53 +1,107 @@
 @page "/slow-queries"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@using K2PerfMonitor.Web.Services
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
 <PageTitle>Slow Queries — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>🐌 Slow Queries</h1>
-        <div class="desc">Query ที่ใช้เวลานาน จาก <code>sys.dm_exec_query_stats</code> — เรียงตาม avg duration</div>
+        <div class="desc">Query ที่ใช้เวลานาน จาก <code>sys.dm_exec_query_stats</code> — เรียงตาม avg duration
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">@AsOf</span> }
+        </div>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 ค้นหา query / DB / object" value="@grid.Search"
+               @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
 </div>
 
 <div class="panel">
-    <table class="tbl">
-        <thead>
-            <tr>
-                <th>Severity</th><th>Query</th><th>DB</th>
-                <th style="text-align:right">Executions</th>
-                <th style="text-align:right">Avg ms</th>
-                <th style="text-align:right">Max ms</th>
-                <th style="text-align:right">Avg Reads</th>
-                <th>Last Exec</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var q in rows)
-            {
+    <StatusView T="SlowQueryVm" Result="result">
+        @{
+            var all = grid.Filtered(result!.Items);
+            var pageRows = grid.PageOf(all);
+        }
+        <table class="tbl">
+            <thead>
                 <tr>
-                    <td><span class="badge badge-@(q.Severity.ToString().ToLower())">@q.Severity</span></td>
-                    <td class="query-cell">
-                        <div class="mono">@q.QueryHash</div>
-                        <div class="qtxt">@q.QueryText</div>
-                    </td>
-                    <td>@q.DatabaseName</td>
-                    <td style="text-align:right" class="mono">@q.ExecutionCount.ToString("N0")</td>
-                    <td style="text-align:right" class="mono @(q.Severity==Core.Enums.Severity.Critical?"sev-critical":q.Severity==Core.Enums.Severity.Warning?"sev-warning":"")">@q.AvgDurationMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@q.MaxDurationMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@q.AvgLogicalReads.ToString("N0")</td>
-                    <td class="mono">@FormatTime(q.LastExecutionUtc)</td>
+                    <th>Severity</th>
+                    <th class="sortable" @onclick='() => grid.ToggleSort("query")'>Query@(grid.SortIndicator("query"))</th>
+                    <th>DB</th>
+                    <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("exec")'>Executions@(grid.SortIndicator("exec"))</th>
+                    <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("avg")'>Avg ms@(grid.SortIndicator("avg"))</th>
+                    <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("max")'>Max ms@(grid.SortIndicator("max"))</th>
+                    <th style="text-align:right">Avg Reads</th>
+                    <th>Last Exec</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var q in pageRows)
+                {
+                    <tr class="clickable" @onclick="() => Toggle(q.QueryHash)">
+                        <td><span class="badge badge-@(q.Severity.ToString().ToLower())">@q.Severity</span></td>
+                        <td class="query-cell">
+                            <div class="mono">@q.QueryHash</div>
+                            <div class="qtxt">@Trunc(q.QueryText, 110)</div>
+                        </td>
+                        <td>@q.DatabaseName</td>
+                        <td style="text-align:right" class="mono">@q.ExecutionCount.ToString("N0")</td>
+                        <td style="text-align:right" class="mono @SevCls(q.Severity)">@q.AvgDurationMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@q.MaxDurationMs.ToString("N0")</td>
+                        <td style="text-align:right" class="mono">@q.AvgLogicalReads.ToString("N0")</td>
+                        <td class="mono">@FormatTime(q.LastExecutionUtc)</td>
+                    </tr>
+                    @if (expanded == q.QueryHash)
+                    {
+                        <tr class="detail-row"><td colspan="8">
+                            <div class="detail">
+                                <strong>Full query text · @q.ObjectName</strong>
+                                <pre class="code">@q.QueryText</pre>
+                                <div class="mono">Total: @q.TotalDurationMs.ToString("N0") ms · Avg CPU: @q.AvgCpuMs.ToString("N0") ms</div>
+                            </div>
+                        </td></tr>
+                    }
+                }
+            </tbody>
+        </table>
+        <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+    </StatusView>
 </div>
 
 @code {
-    private List<SlowQueryVm> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetSlowQueries();
+    private QueryResult<SlowQueryVm>? result;
+    private string? expanded;
+    private readonly GridState<SlowQueryVm> grid = new(
+        q => $"{q.QueryText} {q.DatabaseName} {q.ObjectName} {q.QueryHash}",
+        new()
+        {
+            ["query"] = q => q.QueryText,
+            ["exec"] = q => q.ExecutionCount,
+            ["avg"] = q => q.AvgDurationMs,
+            ["max"] = q => q.MaxDurationMs
+        }, "avg");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetSlowQueriesAsync(); }
+    private void Toggle(string hash) => expanded = expanded == hash ? null : hash;
+    private string AsOf => "as of " + (result!.AsOfUtc!.Value.ToLocalTime().ToString("HH:mm:ss"));
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("QueryHash", q => q.QueryHash), ("Database", q => q.DatabaseName), ("Object", q => q.ObjectName),
+            ("Executions", q => q.ExecutionCount), ("AvgMs", q => q.AvgDurationMs), ("MaxMs", q => q.MaxDurationMs),
+            ("AvgReads", q => q.AvgLogicalReads), ("AvgCpuMs", q => q.AvgCpuMs), ("QueryText", q => q.QueryText));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"slow-queries-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
+
+    private static string Trunc(string s, int n) => string.IsNullOrEmpty(s) ? "" : s.Length <= n ? s : s[..n] + "…";
     private static string FormatTime(DateTime? t) => t?.ToLocalTime().ToString("HH:mm:ss") ?? "-";
+    private static string SevCls(Core.Enums.Severity s) => s == Core.Enums.Severity.Critical ? "sev-critical" : s == Core.Enums.Severity.Warning ? "sev-warning" : "";
 }

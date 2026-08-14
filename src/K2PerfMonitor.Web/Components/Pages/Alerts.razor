@@ -1,51 +1,82 @@
 @page "/alerts"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject AlertService AlertSvc
+@inject IJSRuntime JS
 
 <PageTitle>Alerts — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>🚨 Alerts</h1>
-        <div class="desc">ประวัติการแจ้งเตือนทั้งหมด — filter ตาม severity/status</div>
+        <div class="desc">ประวัติการแจ้งเตือนจริงจาก alert engine — filter ตาม status</div>
     </div>
     <div class="btn-group">
-        <button class="btn btn-sm btn-outline-light @(statusFilter=="All"?"active":"")" @onclick="@(() => SetFilter("All"))">ทั้งหมด</button>
-        <button class="btn btn-sm btn-outline-light @(statusFilter=="New"?"active":"")" @onclick="@(() => SetFilter("New"))">🔵 New</button>
-        <button class="btn btn-sm btn-outline-light @(statusFilter=="Acknowledged"?"active":"")" @onclick="@(() => SetFilter("Acknowledged"))">🟡 Acked</button>
-        <button class="btn btn-sm btn-outline-light @(statusFilter=="Resolved"?"active":"")" @onclick="@(() => SetFilter("Resolved"))">🟢 Resolved</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter is null?"active":"")" @onclick="@(() => SetFilter(null))">ทั้งหมด</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter==AlertStatus.New?"active":"")" @onclick="@(() => SetFilter(AlertStatus.New))">🔵 New</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter==AlertStatus.Acknowledged?"active":"")" @onclick="@(() => SetFilter(AlertStatus.Acknowledged))">🟡 Acked</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter==AlertStatus.Resolved?"active":"")" @onclick="@(() => SetFilter(AlertStatus.Resolved))">🟢 Resolved</button>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    <div class="toolbar">
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
 </div>
 
 <div class="panel">
-    <table class="tbl">
-        <thead><tr>
-            <th>Severity</th><th>Status</th><th>ระบบ</th><th>Title</th><th>Summary</th>
-            <th>เวลา</th><th>จำนวนแจ้ง</th>
-        </tr></thead>
-        <tbody>
-            @foreach (var a in Filtered)
-            {
-                <tr>
-                    <td><span class="badge badge-@(a.Severity.ToString().ToLower())">@a.Severity</span></td>
-                    <td><span class="badge badge-@(a.Status.ToString().ToLower())">@a.Status</span></td>
-                    <td>@a.CollectorType</td>
-                    <td><strong>@a.Title</strong></td>
-                    <td style="max-width:320px;"><span class="sev-info" style="font-size:.82rem;">@a.Summary</span></td>
-                    <td class="mono">@a.RaisedAtUtc.ToLocalTime().ToString("MM-dd HH:mm")</td>
-                    <td style="text-align:center">@a.NotifyCount</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <StatusView T="Alert" Result="result">
+        <EmptyContent><div class="empty">✅ ไม่มี alert ในเงื่อนไขนี้</div></EmptyContent>
+        <ChildContent>
+            @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+            <table class="tbl">
+                <thead><tr>
+                    <th>Severity</th><th>Status</th><th>ระบบ</th><th>Title</th><th>Summary</th>
+                    <th class="sortable" @onclick='() => grid.ToggleSort("time")'>เวลา@(grid.SortIndicator("time"))</th>
+                    <th style="text-align:center">แจ้ง</th><th></th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var a in rows)
+                    {
+                        <tr>
+                            <td><span class="badge badge-@(a.Severity.ToString().ToLower())">@a.Severity</span></td>
+                            <td><span class="badge badge-@(a.Status.ToString().ToLower())">@a.Status</span></td>
+                            <td>@a.CollectorType</td>
+                            <td><strong>@a.Title</strong></td>
+                            <td style="max-width:320px;"><span style="font-size:.82rem;">@a.Summary</span></td>
+                            <td class="mono">@a.RaisedAtUtc.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                            <td style="text-align:center">@a.NotifyCount</td>
+                            <td>
+                                @if (a.Status == AlertStatus.New)
+                                {
+                                    <button class="btn btn-sm btn-outline-light" @onclick="() => Acknowledge(a.Id)">✓ Ack</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+        </ChildContent>
+    </StatusView>
 </div>
 
 @code {
-    private string statusFilter = "All";
-    private List<Alert> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetAlerts();
-    private void SetFilter(string f) => statusFilter = f;
-    private IEnumerable<Alert> Filtered => statusFilter == "All" ? rows : rows.Where(x => x.Status.ToString() == statusFilter);
+    private QueryResult<Alert>? result;
+    private AlertStatus? statusFilter;
+    private readonly GridState<Alert> grid = new(
+        a => $"{a.Title} {a.Summary} {a.CollectorType}",
+        new() { ["time"] = a => a.RaisedAtUtc }, "time");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await AlertSvc.GetAlertsAsync(statusFilter); }
+    private async Task SetFilter(AlertStatus? f) { statusFilter = f; await Load(); }
+    private async Task Acknowledge(long id) { await AlertSvc.AcknowledgeAsync(id); await Load(); }
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("Severity", a => a.Severity), ("Status", a => a.Status), ("System", a => a.CollectorType),
+            ("Title", a => a.Title), ("Summary", a => a.Summary), ("Raised", a => a.RaisedAtUtc), ("NotifyCount", a => a.NotifyCount));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"alerts-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
 }

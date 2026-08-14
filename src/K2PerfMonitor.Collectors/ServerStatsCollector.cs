@@ -52,7 +52,7 @@ public sealed class ServerStatsCollector : SqlCollectorBase
                 @@SERVERNAME AS InstanceName,
                 cpu_count,
                 CASE WHEN physical_memory_kb > 0 THEN physical_memory_kb / 1024.0 ELSE 0 END AS TotalMemoryMb,
-                DATEDIFF(second, sqlserver_start_time, GETUTCDATE()) AS UptimeSeconds,
+                DATEDIFF(second, sqlserver_start_time, GETDATE()) AS UptimeSeconds,
                 scheduler_count AS OnlineSchedulerCount
             FROM sys.dm_os_sys_info;
             """, r => new

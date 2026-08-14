@@ -1,0 +1,29 @@
+@typeparam T
+@using K2PerfMonitor.Web.Services
+
+@if (Result is null)
+{
+    <div class="empty">⏳ กำลังโหลดข้อมูล...</div>
+}
+else if (Result.IsError)
+{
+    <div class="empty err-state">
+        ⚠ อ่านข้อมูลจาก Monitoring DB ไม่ได้
+        <div class="mono" style="font-size:.78rem;opacity:.7;margin-top:6px;">@Result.ErrorMessage</div>
+    </div>
+}
+else if (Result.IsEmpty)
+{
+    @if (EmptyContent is not null) { @EmptyContent }
+    else { <div class="empty">ยังไม่มีข้อมูล — รอ Worker เก็บข้อมูลรอบถัดไป</div> }
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public QueryResult<T>? Result { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? EmptyContent { get; set; }
+}

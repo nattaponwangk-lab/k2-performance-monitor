@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using K2PerfMonitor.Web.Services
 @inject ServerStatsService Stats
-@inject MockDataService Mock
+@inject AlertService AlertSvc
 
 <PageTitle>Overview — K2 Performance Monitor</PageTitle>
 
@@ -91,9 +91,31 @@ else
     </div>
 
     <div class="panel" style="margin-top:16px;">
-        <div class="panel-title">Alerts ล่าสุด</div>
-        <div class="panel-sub">การแจ้งเตือนที่ยัง active (alert engine ยังไม่เปิดใช้งานในรอบนี้)</div>
-        <div class="empty">@alertStatus</div>
+        <div class="panel-title">Alerts ล่าสุด (active)</div>
+        <div class="panel-sub">การแจ้งเตือนที่ยัง active จาก alert engine</div>
+        @if (alerts.Count == 0)
+        {
+            <div class="empty">✅ ไม่มี alert ที่ active</div>
+        }
+        else
+        {
+            <table class="tbl">
+                <thead><tr><th>Severity</th><th>ระบบ</th><th>Title</th><th>Summary</th><th>เวลา</th></tr></thead>
+                <tbody>
+                    @foreach (var a in alerts.Take(8))
+                    {
+                        <tr>
+                            <td><span class="badge badge-@(a.Severity.ToString().ToLower())">@a.Severity</span></td>
+                            <td>@a.CollectorType</td>
+                            <td><strong>@a.Title</strong></td>
+                            <td style="max-width:340px"><span style="font-size:.82rem">@a.Summary</span></td>
+                            <td class="mono">@a.RaisedAtUtc.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <a href="/alerts" class="btn btn-sm btn-outline-light" style="margin-top:10px;">ดูทั้งหมด →</a>
+        }
     </div>
 }
 
@@ -102,7 +124,6 @@ else
     private List<Alert> alerts = new();
     private bool loading = true;
     private bool isRealData = false;
-    private string alertStatus = "⏳ Alert engine ยังไม่เปิดใช้งาน — จะเปิดในรอบถัดไป";
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,6 +135,16 @@ else
         loading = true;
         data = await Stats.GetOverviewAsync();
         isRealData = await Stats.HasDataAsync();
+
+        var (active, critical) = await AlertSvc.GetActiveCountsAsync();
+        data.ActiveAlertCount = active;
+        data.CriticalAlertCount = critical;
+
+        var alertResult = await AlertSvc.GetAlertsAsync(AlertStatus.New);
+        alerts = alertResult.IsOk
+            ? alertResult.Items.Concat((await AlertSvc.GetAlertsAsync(AlertStatus.Acknowledged)).Items).ToList()
+            : new List<Alert>();
+
         loading = false;
     }
 

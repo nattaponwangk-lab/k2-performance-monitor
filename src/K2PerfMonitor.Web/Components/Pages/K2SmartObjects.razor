@@ -1,48 +1,15 @@
 @page "/k2-smartobjects"
 @rendermode InteractiveServer
-@inject MockDataService Mock
 
 <PageTitle>K2 SmartObjects — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
-        <h1>🧱 K2 SmartObjects</h1>
-        <div class="desc">SmartObject method calls ที่ช้า — จาก K2 Logger / SmartBox</div>
+        <h1>🧩 K2 SmartObjects</h1>
+        <div class="desc">SmartObject call time ของ K2</div>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
 </div>
 
-<div class="panel">
-    <table class="tbl">
-        <thead><tr>
-            <th>Severity</th><th>SmartObject</th><th>Method</th><th>Service</th>
-            <th style="text-align:right">Duration ms</th>
-            <th style="text-align:right">Calls</th>
-            <th style="text-align:right">Avg ms</th>
-            <th style="text-align:right">Max ms</th>
-            <th style="text-align:right">Rows</th>
-        </tr></thead>
-        <tbody>
-            @foreach (var s in rows)
-            {
-                <tr>
-                    <td><span class="badge badge-@(s.Severity.ToString().ToLower())">@s.Severity</span></td>
-                    <td class="mono">@s.SmartObjectName</td>
-                    <td><span class="badge badge-info">@s.Method</span></td>
-                    <td>@s.ServiceType</td>
-                    <td style="text-align:right" class="mono @(s.DurationMs>5000?"sev-warning":"")">@s.DurationMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@s.CallCount.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@s.AvgDurationMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@s.MaxDurationMs.ToString("N0")</td>
-                    <td style="text-align:right" class="mono">@(s.RowsReturned?.ToString("N0") ?? "-")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</div>
-
-@code {
-    private List<K2SmartObjectVm> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetK2SmartObjects();
-}
+<K2Pending Title="K2 SmartObject Monitoring"
+           Collector="K2SmartObjectCollector"
+           Description="วัดเวลาเรียก SmartObject method (List/Read/Save/Execute) และ service call time จากแหล่งข้อมูล K2" />

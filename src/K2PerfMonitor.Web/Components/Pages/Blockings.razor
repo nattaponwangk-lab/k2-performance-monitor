@@ -1,64 +1,82 @@
-@page "/blocking"
+@page "/blockings"
 @rendermode InteractiveServer
-@inject MockDataService Mock
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
 
 <PageTitle>Blocking — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>🔒 Blocking</h1>
-        <div class="desc">เซสชันที่ block / ถูก block — จาก <code>sys.dm_tran_locks</code> + <code>sys.dm_os_waiting_tasks</code></div>
+        <div class="desc">Session ที่ถูก block ปัจจุบัน จาก <code>sys.dm_exec_requests</code>
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
     </div>
-    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 login / wait type" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
 </div>
 
-@if (rows.Count == 0)
-{
-    <div class="panel"><div class="empty">✅ ไม่มี blocking ในขณะนี้</div></div>
-}
-else
-{
-    foreach (var b in rows)
-    {
-        <div class="panel" style="margin-bottom:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <div>
-                    <span class="badge badge-@(b.Severity.ToString().ToLower())">@b.Severity</span>
-                    <span class="mono" style="margin-left:8px;">@b.WaitType</span>
-                    @if (b.RequestedLockMode is not null)
+<div class="panel">
+    <StatusView T="BlockingVm" Result="result">
+        <EmptyContent><div class="empty">✅ ไม่มี blocking ในขณะนี้</div></EmptyContent>
+        <ChildContent>
+            @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+            <table class="tbl">
+                <thead><tr>
+                    <th>Severity</th><th>Blocked</th><th>Blocking</th>
+                    <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("dur")'>Wait ms@(grid.SortIndicator("dur"))</th>
+                    <th>Wait Type</th><th>Resource</th><th>Blocked Login</th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var b in rows)
                     {
-                        <span class="badge badge-info" style="margin-left:4px;">@b.RequestedLockMode</span>
+                        <tr class="clickable" @onclick="() => Toggle(b.BlockedSessionId)">
+                            <td><span class="badge badge-@(b.Severity.ToString().ToLower())">@b.Severity</span></td>
+                            <td class="mono">SPID @b.BlockedSessionId</td>
+                            <td class="mono">SPID @b.BlockingSessionId</td>
+                            <td style="text-align:right" class="mono">@b.WaitDurationMs.ToString("N0")</td>
+                            <td class="mono">@b.WaitType</td>
+                            <td class="mono" style="font-size:.75rem">@b.Resource</td>
+                            <td>@b.BlockedLoginName</td>
+                        </tr>
+                        @if (expanded == b.BlockedSessionId)
+                        {
+                            <tr class="detail-row"><td colspan="7"><div class="detail">
+                                <strong>Blocked query (SPID @b.BlockedSessionId · @b.BlockedLoginName)</strong>
+                                <pre class="code">@b.BlockedQueryText</pre>
+                                <strong>Blocking query (SPID @b.BlockingSessionId · @b.BlockingLoginName)</strong>
+                                <pre class="code">@b.BlockingQueryText</pre>
+                            </div></td></tr>
+                        }
                     }
-                </div>
-                <div class="mono @(b.WaitDurationMs>60000?"sev-critical":b.WaitDurationMs>30000?"sev-warning":"")">
-                    ⏱ @FormatMs(b.WaitDurationMs)
-                </div>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr auto 1fr; gap:14px; align-items:center;">
-                <div>
-                    <div class="sev-info" style="font-size:.74rem;">🛑 BLOCKED (session @b.BlockedSessionId)</div>
-                    <div class="code-block">@Truncate(b.BlockedQueryText)</div>
-                    <div class="sev-info" style="font-size:.74rem; margin-top:4px;">@b.BlockedLoginName</div>
-                </div>
-                <div style="font-size:1.6rem; color:var(--warn);">→</div>
-                <div>
-                    <div class="sev-info" style="font-size:.74rem;">🔒 BLOCKING (session @b.BlockingSessionId)</div>
-                    <div class="code-block">@Truncate(b.BlockingQueryText)</div>
-                    <div class="sev-info" style="font-size:.74rem; margin-top:4px;">@b.BlockingLoginName</div>
-                </div>
-            </div>
-            @if (b.Resource is not null)
-            {
-                <div class="sev-info" style="font-size:.74rem; margin-top:8px;">Resource: <span class="mono">@b.Resource</span></div>
-            }
-        </div>
-    }
-}
+                </tbody>
+            </table>
+            <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+        </ChildContent>
+    </StatusView>
+</div>
 
 @code {
-    private List<BlockingVm> rows = new();
-    protected override void OnInitialized() => Load();
-    private void Load() => rows = Mock.GetBlocking();
-    private static string FormatMs(double ms) => ms >= 1000 ? $"{ms/1000:0.0}s" : $"{ms:0}ms";
-    private static string Truncate(string? s) => string.IsNullOrEmpty(s) ? "" : (s.Length > 200 ? s[..200] + "…" : s);
+    private QueryResult<BlockingVm>? result;
+    private int? expanded;
+    private readonly GridState<BlockingVm> grid = new(
+        b => $"{b.BlockedLoginName} {b.BlockingLoginName} {b.WaitType}",
+        new() { ["dur"] = b => b.WaitDurationMs }, "dur");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetBlockingAsync(); }
+    private void Toggle(int id) => expanded = expanded == id ? null : id;
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("BlockedSPID", b => b.BlockedSessionId), ("BlockingSPID", b => b.BlockingSessionId), ("WaitMs", b => b.WaitDurationMs),
+            ("WaitType", b => b.WaitType), ("Resource", b => b.Resource), ("BlockedLogin", b => b.BlockedLoginName),
+            ("BlockingLogin", b => b.BlockingLoginName), ("BlockedQuery", b => b.BlockedQueryText));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"blocking-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
 }
