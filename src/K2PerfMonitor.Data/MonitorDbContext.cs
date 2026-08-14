@@ -14,6 +14,7 @@ public class MonitorDbContext : DbContext
 
     // Metric tables (per collector)
     public DbSet<SlowQueryEntity> SlowQueries => Set<SlowQueryEntity>();
+    public DbSet<ExecutionPlanEntity> ExecutionPlans => Set<ExecutionPlanEntity>();
     public DbSet<WaitStatEntity> WaitStats => Set<WaitStatEntity>();
     public DbSet<BlockingEventEntity> BlockingEvents => Set<BlockingEventEntity>();
     public DbSet<DeadlockEventEntity> DeadlockEvents => Set<DeadlockEventEntity>();
@@ -37,6 +38,9 @@ public class MonitorDbContext : DbContext
         // ---- Metric tables: index บน CollectedAtUtc (สำหรับ retention + trend) ----
         ConfigureMetricTable(modelBuilder.Entity<SlowQueryEntity>(), "SlowQueries", e => e
             .HasIndex(x => new { x.CollectedAtUtc, x.SourceKey }));
+
+        ConfigureMetricTable(modelBuilder.Entity<ExecutionPlanEntity>(), "ExecutionPlans", e => e
+            .HasIndex(x => new { x.CollectedAtUtc, x.QueryHash }));
 
         ConfigureMetricTable(modelBuilder.Entity<WaitStatEntity>(), "WaitStats", e => e
             .HasIndex(x => new { x.CollectedAtUtc, x.WaitType }));

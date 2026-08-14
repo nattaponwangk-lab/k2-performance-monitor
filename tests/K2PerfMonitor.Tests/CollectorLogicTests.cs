@@ -1,0 +1,129 @@
+using K2PerfMonitor.Collectors;
+using K2PerfMonitor.Core.Enums;
+using K2PerfMonitor.Core.Options;
+
+namespace K2PerfMonitor.Tests;
+
+/// <summary>
+/// Unit tests สำหรับ pure logic ของ collector framework (Phase 1)
+/// - delta/baseline handling ของ DMV สะสม
+/// - registry schedule mapping
+/// - helper functions
+/// </summary>
+public class DeltaMathTests
+{
+    [Theory]
+    [InlineData(10, 15, 5)]     // ปกติ: current > previous
+    [InlineData(0, 100, 100)]   // จาก 0
+    [InlineData(100, 100, 0)]   // ไม่เปลี่ยน
+    public void Diff_long_returns_delta(long prev, long cur, long expected)
+        => Assert.Equal(expected, DeltaMath.Diff(prev, cur));
+
+    [Fact]
+    public void Diff_long_handles_counter_reset()
+    {
+        // server restart → current < previous → ถือ current เป็น delta
+        Assert.Equal(30, DeltaMath.Diff(1000, 30));
+    }
+
+    [Fact]
+    public void Diff_double_handles_reset()
+    {
+        Assert.Equal(5.5, DeltaMath.Diff(10.0, 15.5));
+        Assert.Equal(3.0, DeltaMath.Diff(100.0, 3.0)); // reset
+    }
+}
+
+public class DeltaBaselineTests
+{
+    [Fact]
+    public void First_update_returns_no_deltas_and_sets_baseline()
+    {
+        var b = new DeltaBaseline<long>();
+        Assert.False(b.HasBaseline);
+
+        var d1 = b.Update(new Dictionary<string, long> { ["a"] = 100 }, DeltaMath.Diff);
+
+        Assert.Empty(d1);          // รอบแรก = baseline เท่านั้น
+        Assert.True(b.HasBaseline);
+    }
+
+    [Fact]
+    public void Second_update_returns_delta_vs_previous()
+    {
+        var b = new DeltaBaseline<long>();
+        b.Update(new Dictionary<string, long> { ["a"] = 100 }, DeltaMath.Diff);
+
+        var d2 = b.Update(new Dictionary<string, long> { ["a"] = 175 }, DeltaMath.Diff);
+
+        Assert.Equal(75, d2["a"]);
+    }
+
+    [Fact]
+    public void New_key_appears_only_after_it_has_a_baseline()
+    {
+        var b = new DeltaBaseline<long>();
+        b.Update(new Dictionary<string, long> { ["a"] = 10 }, DeltaMath.Diff);
+
+        // key "b" ปรากฏครั้งแรก → ยังไม่มี delta
+        var d2 = b.Update(new Dictionary<string, long> { ["a"] = 20, ["b"] = 5 }, DeltaMath.Diff);
+        Assert.True(d2.ContainsKey("a"));
+        Assert.False(d2.ContainsKey("b"));
+
+        // รอบถัดไป key "b" มี baseline แล้ว
+        var d3 = b.Update(new Dictionary<string, long> { ["a"] = 25, ["b"] = 12 }, DeltaMath.Diff);
+        Assert.Equal(7, d3["b"]);
+    }
+}
+
+public class CollectorRegistryMappingTests
+{
+    [Fact]
+    public void IntervalFor_maps_each_type_to_configured_seconds()
+    {
+        var s = new CollectorScheduleOptions
+        {
+            ServerStatsIntervalSeconds = 15,
+            BlockingIntervalSeconds = 30,
+            DeadlockIntervalSeconds = 120,
+            IndexIntervalSeconds = 300
+        };
+        Assert.Equal(15, CollectorRegistry.IntervalFor(CollectorType.ServerStats, s));
+        Assert.Equal(30, CollectorRegistry.IntervalFor(CollectorType.Blocking, s));
+        Assert.Equal(120, CollectorRegistry.IntervalFor(CollectorType.Deadlock, s));
+        Assert.Equal(300, CollectorRegistry.IntervalFor(CollectorType.Index, s));
+    }
+
+    [Fact]
+    public void ExecutionPlan_shares_slowquery_interval()
+    {
+        var s = new CollectorScheduleOptions { SlowQueryIntervalSeconds = 45 };
+        Assert.Equal(45, CollectorRegistry.IntervalFor(CollectorType.ExecutionPlan, s));
+    }
+}
+
+public class CollectorHelperTests
+{
+    [Fact]
+    public void Trim_returns_placeholder_for_empty()
+        => Assert.Equal("(no text)", SlowQueryCollector.Trim("   ", 50));
+
+    [Fact]
+    public void Trim_truncates_and_flattens_newlines()
+    {
+        var result = SlowQueryCollector.Trim("SELECT *\r\nFROM BigTable", 10);
+        Assert.DoesNotContain('\n', result);
+        Assert.EndsWith("…", result);
+        Assert.True(result.Length <= 11);
+    }
+
+    [Fact]
+    public void BuildCreateIndexScript_includes_key_and_include_columns()
+    {
+        var script = IndexCollector.BuildCreateIndexScript("Db", "dbo", "Orders", "[CustomerId]", "[OrderDate]", "[Total]");
+        Assert.Contains("CREATE NONCLUSTERED INDEX", script);
+        Assert.Contains("[dbo].[Orders]", script);
+        Assert.Contains("[CustomerId]", script);
+        Assert.Contains("INCLUDE ([Total])", script);
+    }
+}

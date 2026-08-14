@@ -52,9 +52,10 @@ builder.Services.AddDbContextFactory<MonitorDbContext>(options =>
 
 // ---- Repository + Collectors + Alert engine + Job ----
 builder.Services.AddScoped<IMetricRepository, MetricRepository>();
-builder.Services.AddTransient<ICollector, ServerStatsCollector>();
+builder.Services.AddSqlCollectors();
 builder.Services.AddScoped<IAlertEvaluator, AlertEvaluator>();
 builder.Services.AddScoped<CollectorJob>();
+builder.Services.AddScoped<RetentionJob>();
 
 // ---- Notifications (Email/Teams/LINE) — ปิดทุกช่องทางโดย default จนกว่าจะตั้ง config ----
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -100,20 +101,31 @@ using (var scope = host.Services.CreateScope())
     Log.Information("Monitoring DB migrations applied");
 }
 
-// ---- Register recurring collector jobs (driven by CollectorSchedule) ----
+// ---- Register recurring collector jobs (driven by ICollectorRegistry + CollectorSchedule) ----
 using (var scope = host.Services.CreateScope())
 {
     var recurring = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    var registry = scope.ServiceProvider.GetRequiredService<ICollectorRegistry>();
+
+    foreach (var reg in registry.Registrations)
+    {
+        var type = reg.Type;
+        recurring.AddOrUpdate<CollectorJob>(
+            reg.JobId,
+            job => job.RunAsync(type, CancellationToken.None),
+            CronExpr.FromSeconds(reg.IntervalSeconds));
+        Log.Information("Registered {JobId} @ every {Interval}s", reg.JobId, reg.IntervalSeconds);
+    }
+
+    // ---- Retention job (Phase 2) — ล้างข้อมูลเก่าตาม RetentionDays วันละครั้ง ----
     var schedule = scope.ServiceProvider.GetRequiredService<IOptions<CollectorScheduleOptions>>().Value;
+    recurring.AddOrUpdate<RetentionJob>(
+        "maintenance:retention",
+        job => job.RunAsync(CancellationToken.None),
+        Cron.Daily(3)); // 03:00 UTC
 
-    recurring.AddOrUpdate<CollectorJob>(
-        "collector:ServerStats",
-        job => job.RunAsync(CollectorType.ServerStats, CancellationToken.None),
-        CronExpr.FromSeconds(schedule.ServerStatsIntervalSeconds));
-
-    // Phase 1 จะลงทะเบียน collector ที่เหลือที่นี่ (ผ่าน registry)
-    Log.Information("Recurring collector jobs registered (ServerStats @ {Cron})",
-        CronExpr.FromSeconds(schedule.ServerStatsIntervalSeconds));
+    Log.Information("Recurring jobs registered: {Count} collectors + retention (retention {Days}d)",
+        registry.Registrations.Count, schedule.RetentionDays);
 }
 
 host.Run();

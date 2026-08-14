@@ -18,18 +18,20 @@
 
 > **หมายเหตุ deploy:** โฟลเดอร์นี้ยังไม่ใช่ git repo — CI workflow พร้อมใช้เมื่อ `git init` (หรือย้ายเข้า repo หลัก)
 
-## Phase 1 — SQL Core Collectors (11 ตัวที่เหลือ)
-- [ ] `ICollectorRegistry` + per-collector schedule จาก `CollectorSchedule`
-- [ ] **แก้ ServerStats CPU%** จาก heuristic → ค่าจริง (ring buffer / resource pool)
-- [ ] SlowQueryCollector (`sys.dm_exec_query_stats` + threshold)
-- [ ] ExecutionPlanCollector (plan สำหรับ top slow queries)
-- [ ] WaitStatisticsCollector (`sys.dm_os_wait_stats` — delta)
-- [ ] BlockingCollector (`sys.dm_exec_requests` blocking chain)
-- [ ] DeadlockCollector (system_health XEvent / ring buffer)
-- [ ] IndexCollector (missing + unused index)
-- [ ] IoCollector (`sys.dm_io_virtual_file_stats` — delta)
-- [ ] StoredProcedureCollector (`sys.dm_exec_procedure_stats`)
-- [ ] Delta/baseline snapshot handling สำหรับ DMV สะสม
+## Phase 1 — SQL Core Collectors  ✅ (2026-08-14)
+- [x] `ICollectorRegistry` + per-collector schedule จาก `CollectorSchedule` (Worker ผูก recurring job อัตโนมัติจาก registry)
+- [x] **แก้ ServerStats CPU%** จาก heuristic → ค่าจริง (`sys.dm_os_ring_buffers` RING_BUFFER_SCHEDULER_MONITOR — documented source/formula/limits)
+- [x] SlowQueryCollector (`sys.dm_exec_query_stats` + threshold, parameterized)
+- [x] ExecutionPlanCollector (plan XML สำหรับ top slow queries → ตาราง `ExecutionPlans` ใหม่ + migration)
+- [x] WaitStatisticsCollector (`sys.dm_os_wait_stats` — delta + กรอง benign waits)
+- [x] BlockingCollector (`sys.dm_exec_requests` blocking chain + blocked/blocking SQL)
+- [x] DeadlockCollector (system_health XE ring buffer → parse deadlock graph + dedup)
+- [x] IndexCollector (missing + unused index + CREATE/DROP script)
+- [x] IoCollector (`sys.dm_io_virtual_file_stats` — delta, stall/op)
+- [x] StoredProcedureCollector (`sys.dm_exec_procedure_stats`)
+- [x] Delta/baseline snapshot handling สำหรับ DMV สะสม (`DeltaBaseline<T>` + `DeltaMath`, singleton collectors)
+- [x] `SqlCollectorBase` — resilience: source ล่ม → Success=false, ไม่ crash worker · SQL injection-safe (parameterized)
+- [x] Verify: 60 tests (unit + integration รันจริงบน SQL Server LocalDB — collect→persist→alert)
 
 ## Phase 2 — Persistence, Retention & Rollups
 - [ ] Index/optimize ตาราง metric เพื่อ dashboard query
