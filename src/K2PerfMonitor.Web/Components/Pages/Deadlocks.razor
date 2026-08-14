@@ -1,0 +1,61 @@
+@page "/deadlocks"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Deadlocks — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>💀 Deadlocks</h1>
+        <div class="desc">Deadlock ที่ตรวจพบจาก Extended Events <code>system_health</code> session</div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+@if (rows.Count == 0)
+{
+    <div class="panel"><div class="empty">✅ ไม่พบ deadlock ล่าสุด</div></div>
+}
+else
+{
+    <div class="panel">
+        <table class="tbl">
+            <thead><tr><th>เวลาที่เกิด</th><th>Victim (ถูก kill)</th><th>Survivor (รอด)</th><th>Graph</th></tr></thead>
+            <tbody>
+                @foreach (var d in rows)
+                {
+                    var show = expanded == d.DeadlockAtUtc;
+                    <tr>
+                        <td class="mono">@d.DeadlockAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                        <td>
+                            <div class="sev-critical" style="font-size:.78rem;">@d.VictimLoginName</div>
+                            <div class="qtxt">@d.VictimQueryText</div>
+                        </td>
+                        <td>
+                            <div class="sev-ok" style="font-size:.78rem;">@d.SurvivorLoginName</div>
+                            <div class="qtxt">@d.SurvivorQueryText</div>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-light" @onclick="()=>Toggle(d.DeadlockAtUtc)">@(show?"ซ่อน":"ดู")</button>
+                        </td>
+                    </tr>
+                    @if (show)
+                    {
+                        <tr><td colspan="4">
+                            <div class="sev-info" style="font-size:.74rem; margin-bottom:4px;">Deadlock Graph XML</div>
+                            <div class="code-block">&lt;deadlock&gt; ... &lt;victim-list&gt;&lt;victimProcess id="@d.VictimProcessId" /&gt;&lt;/victim-list&gt; ... &lt;/deadlock&gt;</div>
+                        </td></tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<DeadlockVm> rows = new();
+    private DateTime? expanded;
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetDeadlocks();
+    private void Toggle(DateTime key) => expanded = expanded == key ? null : key;
+}

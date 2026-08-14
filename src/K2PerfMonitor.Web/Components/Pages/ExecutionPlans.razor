@@ -1,0 +1,97 @@
+@page "/execution-plans"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Execution Plans — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🧩 Execution Plans</h1>
+        <div class="desc">ดู Execution Plan ของ query ที่ช้า — คลิกจากหน้า Slow Queries เพื่อดู plan ที่นี่</div>
+    </div>
+</div>
+
+@if (selectedQuery is null)
+{
+    <div class="panel">
+        <div class="empty">เลือก query จากหน้า <a href="slow-queries" style="color:var(--accent)">Slow Queries</a> เพื่อดู Execution Plan</div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+        <div class="panel-title">Query ที่เลือกล่าสุด (demo)</div>
+        <div class="panel-sub">คลิกที่แถวในตารางด้านล่างเพื่อดู plan</div>
+        <table class="tbl">
+            <thead><tr><th>Query Hash</th><th>DB</th><th>Avg ms</th><th>Plan</th></tr></thead>
+            <tbody>
+                @foreach (var q in sampleQueries)
+                {
+                    <tr style="cursor:pointer;" @onclick="()=>Select(q)">
+                        <td class="mono">@q.QueryHash</td>
+                        <td>@q.DatabaseName</td>
+                        <td class="mono @(q.AvgDurationMs>10000?"sev-critical":"sev-warning")">@q.AvgDurationMs.ToString("N0")</td>
+                        <td><button class="btn btn-sm btn-outline-light">ดู Plan</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="panel" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div class="panel-title">Execution Plan — <span class="mono">@selectedQuery.QueryHash</span></div>
+                <div class="panel-sub">@selectedQuery.DatabaseName · @selectedQuery.ObjectName</div>
+            </div>
+            <button class="btn btn-sm btn-outline-light" @onclick="()=>selectedQuery=null">← กลับ</button>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-title">Query Text</div>
+        <div class="code-block" style="color:#e2e8f0;">@selectedQuery.QueryText</div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">Estimated Execution Plan</div>
+        <div class="panel-sub">Plan Handle: <span class="mono">@selectedQuery.QueryHash</span></div>
+        <div style="background:#0b0f14; border:1px solid var(--border); border-radius:8px; padding:24px; text-align:center; min-height:200px;">
+            <div style="color:var(--text-muted); margin-bottom:16px;">📊 Execution Plan Visualizer</div>
+            <div style="display:inline-grid; grid-template-columns: auto auto auto auto; gap:8px; text-align:center; font-size:.78rem;">
+                <div class="badge badge-info">SELECT</div>
+                <div style="color:var(--warn)">→</div>
+                <div class="badge badge-warning">Clustered Index Scan</div>
+                <div style="color:var(--warn)">→</div>
+                <div class="badge badge-info">HASH JOIN</div>
+                <div style="color:var(--warn)">→</div>
+                <div class="badge badge-warning">Table Scan</div>
+                <div style="color:var(--warn)">→</div>
+                <div class="badge badge-warning">Sort</div>
+                <div style="color:var(--warn)">→</div>
+                <div class="badge badge-info">Top</div>
+                <div></div>
+            </div>
+            <div class="sev-warning" style="font-size:.82rem; margin-top:16px;">
+                ⚠️ Missing index detected: <span class="mono">IX_ProcInst_Status_StartDate</span> (impact: 87%)
+            </div>
+        </div>
+        @if (selectedQuery.AvgLogicalReads > 100000)
+        {
+            <div class="sev-critical" style="margin-top:12px; font-size:.84rem;">
+                🔴 Logical Reads สูงมาก (@selectedQuery.AvgLogicalReads.ToString("N0") avg) — พิจารณาเพิ่ม index หรือปรับ query
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private SlowQueryVm? selectedQuery;
+    private List<SlowQueryVm> sampleQueries = new();
+
+    protected override void OnInitialized()
+    {
+        sampleQueries = Mock.GetSlowQueries().Take(5).ToList();
+    }
+    private void Select(SlowQueryVm q) => selectedQuery = q;
+}

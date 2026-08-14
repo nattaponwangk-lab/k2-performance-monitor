@@ -1,0 +1,35 @@
+.navbar-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 1rem; color: #fff;
+    text-decoration: none;
+}
+.navbar-brand .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: grid; place-items: center; font-size: .9rem; font-weight: 800; color: #fff;
+}
+.nav-section {
+    color: var(--text-muted); font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .08em; padding: 16px 20px 6px; font-weight: 700;
+}
+.nav-item { width: 100%; }
+.nav-link {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--text-muted); padding: 8px 20px; text-decoration: none;
+    font-size: .88rem; border-left: 3px solid transparent; transition: all .12s;
+}
+.nav-link:hover { color: var(--text); background: rgba(255,255,255,.04); }
+.nav-link.active {
+    color: #fff; background: rgba(59,130,246,.12);
+    border-left-color: var(--accent);
+}
+.nav-link .ico { width: 18px; text-align: center; opacity: .9; }
+.nav-link .pill {
+    margin-left: auto; font-size: .68rem; background: var(--crit);
+    color: #fff; border-radius: 9999px; padding: 1px 7px; font-weight: 700;
+}
+.nav-link .pill.warn { background: var(--warn); }
+
+.nav-scrollable { overflow-y: auto; }
+
+.navbar-toggler { display: none; }

@@ -1,0 +1,67 @@
+@page "/indexes"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Indexes — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>📇 Index Recommendations</h1>
+        <div class="desc">Missing index ที่ควรสร้าง + Unused index ที่ควรลบ — จาก <code>sys.dm_db_missing_index_*</code> + <code>sys.dm_db_index_usage_stats</code></div>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-sm btn-outline-light @(tab=="Missing"?"active":"")" @onclick="@(() => SetTab("Missing"))">Missing (@missing.Count)</button>
+        <button class="btn btn-sm btn-outline-light @(tab=="Unused"?"active":"")" @onclick="@(() => SetTab("Unused"))">Unused (@unused.Count)</button>
+    </div>
+</div>
+
+@if (tab == "Missing")
+{
+    <div class="panel">
+        <table class="tbl">
+            <thead><tr><th>Table</th><th>Equality</th><th>Include</th><th style="text-align:right">Impact</th><th style="text-align:right">Seeks</th><th>Script</th></tr></thead>
+            <tbody>
+                @foreach (var r in missing)
+                {
+                    <tr>
+                        <td class="mono">@r.DatabaseName · @r.TableName</td>
+                        <td class="mono sev-info">@r.EqualityColumns</td>
+                        <td class="mono sev-info">@r.IncludedColumns</td>
+                        <td style="text-align:right"><span class="@(r.Impact>80?"sev-warning":"")"><strong>@r.Impact.ToString("0")%</strong></span></td>
+                        <td style="text-align:right" class="mono">@r.UserSeeks.ToString("N0")</td>
+                        <td><div class="code-block">@r.RecommendationScript</div></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="panel">
+        <table class="tbl">
+            <thead><tr><th>Table</th><th>Index</th><th style="text-align:right">Seeks</th><th style="text-align:right">Scans</th><th>Script</th></tr></thead>
+            <tbody>
+                @foreach (var r in unused)
+                {
+                    <tr>
+                        <td class="mono">@r.DatabaseName · @r.TableName</td>
+                        <td class="mono">@r.IndexName</td>
+                        <td style="text-align:right" class="mono">@r.UserSeeks</td>
+                        <td style="text-align:right" class="mono">@r.UserScans</td>
+                        <td><div class="code-block">@r.RecommendationScript</div></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private string tab = "Missing";
+    private List<IndexRecommendationVm> all = new();
+    private List<IndexRecommendationVm> missing => all.Where(x => x.RecommendationType == "Missing").OrderByDescending(x => x.Impact).ToList();
+    private List<IndexRecommendationVm> unused => all.Where(x => x.RecommendationType == "Unused").ToList();
+    protected override void OnInitialized() => all = Mock.GetIndexRecommendations();
+    private void SetTab(string t) => tab = t;
+}

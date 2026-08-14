@@ -1,0 +1,103 @@
+@page "/cpu-ram"
+@rendermode InteractiveServer
+@inject ServerStatsService Stats
+
+<PageTitle>CPU / RAM — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🖥️ CPU / RAM</h1>
+        <div class="desc">
+            สถิติ server-level — <code>sys.dm_os_sys_info</code>, <code>sys.dm_os_process_memory</code>
+            @if (isRealData) { <span class="badge badge-ok" style="margin-left:8px;">● REAL DATA</span> }
+        </div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Refresh">↻ Refresh</button>
+</div>
+
+@if (loading)
+{
+    <div class="panel"><div class="empty">⏳ กำลังโหลด...</div></div>
+}
+else
+{
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:18px;">
+        <div class="kpi-card">
+            <div class="label">CPU Usage</div>
+            <div class="value @SevClass(d.CpuPercent,95,80)">@d.CpuPercent.ToString("0.0")%</div>
+            <div class="bar"><span style="width:@Math.Min(d.CpuPercent,100)%; background:@SevColor(d.CpuPercent,95,80)"></span></div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Memory</div>
+            <div class="value @SevClass(d.MemoryPercent,90,75)">@d.MemoryPercent.ToString("0.0")%</div>
+            <div class="sub">@d.UsedMemoryMb.ToString("0") / @d.TotalMemoryMb.ToString("0") MB</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Available Memory</div>
+            <div class="value @SevClass(d.AvailableMemoryMb,128,512)">@FormatMb(d.AvailableMemoryMb)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Connections</div>
+            <div class="value">@d.ConnectionCount</div>
+            <div class="sub">@d.ActiveRequestCount active requests</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Batch Requests/sec</div>
+            <div class="value">@d.BatchRequestsPerSec.ToString("0")</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Schedulers</div>
+            <div class="value">@d.OnlineSchedulerCount</div>
+            <div class="sub">@d.BlockedProcessCount blocked</div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="panel">
+            <div class="panel-title">CPU Trend</div>
+            <div class="panel-sub">ล่าสุด 30 จุด</div>
+            @if (d.CpuHistory.Count > 1)
+            {
+                <SparkSeries Points="d.CpuHistory" Max="100" Color="var(--accent)" />
+            }
+            else
+            {
+                <div class="empty">ยังไม่มีข้อมูล history</div>
+            }
+        </div>
+        <div class="panel">
+            <div class="panel-title">Memory Trend</div>
+            <div class="panel-sub">ล่าสุด 30 จุด</div>
+            @if (d.MemoryHistory.Count > 1)
+            {
+                <SparkSeries Points="d.MemoryHistory" Max="100" Color="#8b5cf6" />
+            }
+            else
+            {
+                <div class="empty">ยังไม่มีข้อมูล history</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private OverviewVm d = new();
+    private bool loading = true;
+    private bool isRealData = false;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        loading = true;
+        d = await Stats.GetOverviewAsync();
+        isRealData = await Stats.HasDataAsync();
+        loading = false;
+    }
+    private void Refresh() => _ = RefreshAsync();
+
+    private static string FormatMb(double mb) => mb >= 1024 ? $"{mb/1024:0.0} GB" : $"{mb:0} MB";
+    // available memory: น้อย = แย่ → lowerIsBad
+    private static string SevClass(double v, double c, double w) => v >= c ? "sev-critical" : v >= w ? "sev-warning" : "sev-ok";
+    private static string SevColor(double v, double c, double w) => v >= c ? "var(--crit)" : v >= w ? "var(--warn)" : "var(--ok)";
+}

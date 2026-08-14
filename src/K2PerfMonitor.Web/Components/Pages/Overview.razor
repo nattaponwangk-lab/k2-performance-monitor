@@ -1,0 +1,134 @@
+@page "/"
+@rendermode InteractiveServer
+@using K2PerfMonitor.Web.Services
+@inject ServerStatsService Stats
+@inject MockDataService Mock
+
+<PageTitle>Overview — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Overview</h1>
+        <div class="desc">
+            ภาพรวมสุขภาพของระบบ SQL Server + K2
+            @if (isRealData)
+            {
+                <span class="badge badge-ok" style="margin-left:8px;">● REAL DATA @(@data.InstanceName)</span>
+            }
+            else
+            {
+                <span class="badge badge-warning" style="margin-left:8px;">⚠ MOCK DATA</span>
+            }
+        </div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Refresh">↻ Refresh</button>
+</div>
+
+@if (loading)
+{
+    <div class="panel"><div class="empty">⏳ กำลังโหลดข้อมูล...</div></div>
+}
+else
+{
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;">
+        <div class="kpi-card">
+            <div class="label">Health Score</div>
+            <div class="value @SevClass(data.HealthScore, 50, 80, true)">@data.HealthScore.ToString("0")/100</div>
+            <div class="bar"><span style="width:@(data.HealthScore)%; background:@SevColor(data.HealthScore,50,80,true)"></span></div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">CPU</div>
+            <div class="value @SevClass(data.CpuPercent, 95, 80)">@data.CpuPercent.ToString("0.0")%</div>
+            <div class="bar"><span style="width:@(Math.Min(data.CpuPercent,100))%; background:@SevColor(data.CpuPercent,95,80)"></span></div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Memory</div>
+            <div class="value @SevClass(data.MemoryPercent, 90, 75)">@data.MemoryPercent.ToString("0.0")%</div>
+            <div class="sub">@FormatMb(data.AvailableMemoryMb) free</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Connections</div>
+            <div class="value">@data.ConnectionCount</div>
+            <div class="sub">@data.ActiveRequestCount active · @data.BlockedProcessCount blocked</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Batch / sec</div>
+            <div class="value">@data.BatchRequestsPerSec.ToString("0")</div>
+            <div class="sub">Uptime @FormatUptime(data.UptimeSeconds)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">Active Alerts</div>
+            <div class="value @(data.CriticalAlertCount > 0 ? "sev-critical" : "sev-warning")">@data.ActiveAlertCount</div>
+            <div class="sub"><span class="badge badge-critical">@data.CriticalAlertCount critical</span></div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="panel">
+            <div class="panel-title">CPU Trend (ล่าสุด 30 จุด)</div>
+            <div class="panel-sub">เปอร์เซ็นต์การใช้งาน CPU ย้อนหลัง</div>
+            @if (data.CpuHistory.Count > 1)
+            {
+                <SparkSeries Points="data.CpuHistory" Max="100" Color="var(--accent)" />
+            }
+            else
+            {
+                <div class="empty">ยังไม่มีข้อมูล history (รอ Worker เก็บข้อมูลสักครู่)</div>
+            }
+        </div>
+        <div class="panel">
+            <div class="panel-title">Memory Trend (ล่าสุด 30 จุด)</div>
+            <div class="panel-sub">เปอร์เซ็นต์การใช้งาน Memory ย้อนหลัง</div>
+            @if (data.MemoryHistory.Count > 1)
+            {
+                <SparkSeries Points="data.MemoryHistory" Max="100" Color="#8b5cf6" />
+            }
+            else
+            {
+                <div class="empty">ยังไม่มีข้อมูล history (รอ Worker เก็บข้อมูลสักครู่)</div>
+            }
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+        <div class="panel-title">Alerts ล่าสุด</div>
+        <div class="panel-sub">การแจ้งเตือนที่ยัง active (alert engine ยังไม่เปิดใช้งานในรอบนี้)</div>
+        <div class="empty">@alertStatus</div>
+    </div>
+}
+
+@code {
+    private OverviewVm data = new();
+    private List<Alert> alerts = new();
+    private bool loading = true;
+    private bool isRealData = false;
+    private string alertStatus = "⏳ Alert engine ยังไม่เปิดใช้งาน — จะเปิดในรอบถัดไป";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        loading = true;
+        data = await Stats.GetOverviewAsync();
+        isRealData = await Stats.HasDataAsync();
+        loading = false;
+    }
+
+    private void Refresh() => _ = RefreshAsync();
+
+    private static string FormatMb(double mb) => mb >= 1024 ? $"{mb/1024:0.0} GB" : $"{mb:0} MB";
+    private static string FormatUptime(long sec)
+    {
+        var d = sec / 86400; var h = (sec % 86400) / 3600;
+        return d > 0 ? $"{d}d {h}h" : $"{h}h {(sec % 3600)/60}m";
+    }
+    private static string SevClass(double v, double crit, double warn, bool lowerIsBad = false)
+        => (lowerIsBad ? v <= crit : v >= crit) ? "sev-critical"
+         : (lowerIsBad ? v <= warn : v >= warn) ? "sev-warning" : "sev-ok";
+    private static string SevColor(double v, double crit, double warn, bool lowerIsBad = false)
+        => (lowerIsBad ? v <= crit : v >= crit) ? "var(--crit)"
+         : (lowerIsBad ? v <= warn : v >= warn) ? "var(--warn)" : "var(--ok)";
+}

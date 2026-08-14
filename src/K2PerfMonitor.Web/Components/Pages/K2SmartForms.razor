@@ -1,0 +1,66 @@
+@page "/k2-smartforms"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>K2 SmartForms — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>📋 K2 SmartForms</h1>
+        <div class="desc">เวลาโหลด form + initialize rule — จาก SmartForms profiler / IIS logs</div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;">
+    <div class="kpi-card">
+        <div class="label">Forms ที่ตรวจ</div>
+        <div class="value">@rows.Count</div>
+    </div>
+    <div class="kpi-card">
+        <div class="label">Avg Load</div>
+        <div class="value @(avgLoad>8000?"sev-warning":"sev-ok")">@avgLoad.ToString("0") ms</div>
+    </div>
+    <div class="kpi-card">
+        <div class="label">Slowest</div>
+        <div class="value sev-critical">@rows.MaxBy(x=>x.MaxLoadMs)?.MaxLoadMs.ToString("0") ms</div>
+    </div>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead><tr>
+            <th>Severity</th><th>Form</th>
+            <th style="text-align:right">Load ms</th>
+            <th style="text-align:right">Init Rule ms</th>
+            <th style="text-align:right">Loads</th>
+            <th style="text-align:right">Avg ms</th>
+            <th style="text-align:right">Max ms</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var f in rows)
+            {
+                <tr>
+                    <td><span class="badge badge-@(f.Severity.ToString().ToLower())">@f.Severity</span></td>
+                    <td class="mono">@f.FormName</td>
+                    <td style="text-align:right" class="mono @(f.FormLoadMs>8000?"sev-critical":"")">@f.FormLoadMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@(f.InitializeRuleMs?.ToString("N0") ?? "-")</td>
+                    <td style="text-align:right" class="mono">@f.LoadCount.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@f.AvgLoadMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@f.MaxLoadMs.ToString("N0")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<K2SmartFormVm> rows = new();
+    private double avgLoad = 0;
+    protected override void OnInitialized() => Load();
+    private void Load()
+    {
+        rows = Mock.GetK2SmartForms();
+        avgLoad = rows.Count > 0 ? rows.Average(x => x.AvgLoadMs) : 0;
+    }
+}

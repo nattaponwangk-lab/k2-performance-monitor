@@ -1,0 +1,47 @@
+@page "/stored-procedures"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Stored Procedures — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>⚙️ Stored Procedures</h1>
+        <div class="desc">Stored procedure ที่ทำงานช้า — จาก <code>sys.dm_exec_procedure_stats</code></div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead><tr>
+            <th>Severity</th><th>Procedure</th><th>Database</th>
+            <th style="text-align:right">Executions</th>
+            <th style="text-align:right">Avg ms</th>
+            <th style="text-align:right">Max ms</th>
+            <th style="text-align:right">Avg Reads</th>
+            <th>Last Exec</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td><span class="badge badge-@(r.Severity.ToString().ToLower())">@r.Severity</span></td>
+                    <td class="mono">@r.ObjectName</td>
+                    <td>@r.DatabaseName</td>
+                    <td style="text-align:right" class="mono">@r.ExecutionCount.ToString("N0")</td>
+                    <td style="text-align:right" class="mono @(r.Severity==Core.Enums.Severity.Critical?"sev-critical":"")">@r.AvgElapsedMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@r.MaxElapsedMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@r.AvgLogicalReads.ToString("N0")</td>
+                    <td class="mono">@r.LastExecutionUtc?.ToLocalTime().ToString("HH:mm:ss")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<StoredProcedureVm> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetStoredProcedures();
+}

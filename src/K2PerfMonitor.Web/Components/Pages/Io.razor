@@ -1,0 +1,46 @@
+@page "/io"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>I/O — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>💾 I/O Statistics</h1>
+        <div class="desc">ค่า stall time ต่อ I/O operation — จาก <code>sys.dm_io_virtual_file_stats</code></div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead><tr>
+            <th>Database</th><th>File</th><th>Type</th>
+            <th style="text-align:right">Reads</th><th style="text-align:right">Writes</th>
+            <th style="text-align:right">Read Stall ms</th><th style="text-align:right">Write Stall ms</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                var readColor = r.IoStallMsPerRead > 20 ? "var(--warn)" : r.IoStallMsPerRead > 50 ? "var(--crit)" : "var(--ok)";
+                <tr>
+                    <td class="mono">@r.DatabaseName</td>
+                    <td class="mono">@r.LogicalFileName</td>
+                    <td><span class="badge badge-info">@r.FileType</span></td>
+                    <td style="text-align:right" class="mono">@r.NumOfReads.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@r.NumOfWrites.ToString("N0")</td>
+                    <td style="text-align:right; color:@readColor" class="mono">
+                        <span class="badge @(r.Severity==Core.Enums.Severity.Warning?"badge-warning":"badge-ok")">@r.IoStallMsPerRead.ToString("0.0")</span>
+                    </td>
+                    <td style="text-align:right" class="mono">@r.IoStallMsPerWrite.ToString("0.0")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<IoStatVm> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetIoStats();
+}

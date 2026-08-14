@@ -1,0 +1,49 @@
+# ---- .NET build output ----
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+artifacts/
+*.user
+*.suo
+*.userprefs
+.vs/
+
+# ---- Rider / VS Code ----
+.idea/
+.vscode/
+*.DotSettings.user
+
+# ---- Logs ----
+logs/
+*.log
+
+# ---- Test / coverage ----
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage
+*.trx
+TestResults/
+
+# ---- Local secrets / config overrides (NEVER commit) ----
+appsettings.*.local.json
+appsettings.Local.json
+secrets.json
+*.secret
+*.pfx
+*.key
+.env
+.env.*
+
+# ---- SQL Server / LocalDB artifacts ----
+*.mdf
+*.ldf
+*.ndf
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini

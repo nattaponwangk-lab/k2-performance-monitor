@@ -1,0 +1,51 @@
+@page "/alerts"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Alerts — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🚨 Alerts</h1>
+        <div class="desc">ประวัติการแจ้งเตือนทั้งหมด — filter ตาม severity/status</div>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-sm btn-outline-light @(statusFilter=="All"?"active":"")" @onclick="@(() => SetFilter("All"))">ทั้งหมด</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter=="New"?"active":"")" @onclick="@(() => SetFilter("New"))">🔵 New</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter=="Acknowledged"?"active":"")" @onclick="@(() => SetFilter("Acknowledged"))">🟡 Acked</button>
+        <button class="btn btn-sm btn-outline-light @(statusFilter=="Resolved"?"active":"")" @onclick="@(() => SetFilter("Resolved"))">🟢 Resolved</button>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead><tr>
+            <th>Severity</th><th>Status</th><th>ระบบ</th><th>Title</th><th>Summary</th>
+            <th>เวลา</th><th>จำนวนแจ้ง</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var a in Filtered)
+            {
+                <tr>
+                    <td><span class="badge badge-@(a.Severity.ToString().ToLower())">@a.Severity</span></td>
+                    <td><span class="badge badge-@(a.Status.ToString().ToLower())">@a.Status</span></td>
+                    <td>@a.CollectorType</td>
+                    <td><strong>@a.Title</strong></td>
+                    <td style="max-width:320px;"><span class="sev-info" style="font-size:.82rem;">@a.Summary</span></td>
+                    <td class="mono">@a.RaisedAtUtc.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                    <td style="text-align:center">@a.NotifyCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private string statusFilter = "All";
+    private List<Alert> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetAlerts();
+    private void SetFilter(string f) => statusFilter = f;
+    private IEnumerable<Alert> Filtered => statusFilter == "All" ? rows : rows.Where(x => x.Status.ToString() == statusFilter);
+}

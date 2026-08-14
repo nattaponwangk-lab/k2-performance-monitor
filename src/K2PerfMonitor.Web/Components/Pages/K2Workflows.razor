@@ -1,0 +1,52 @@
+@page "/k2-workflows"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>K2 Workflows — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🔄 K2 Workflows</h1>
+        <div class="desc">Workflow latency + สถานะ — จาก <code>[Server].[ProcInst]</code> + <code>[Server].[ActivityInst]</code></div>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-sm btn-outline-light @(filter=="All"?"active":"")" @onclick="@(() => SetFilter("All"))">ทั้งหมด (@rows.Count)</button>
+        <button class="btn btn-sm btn-outline-light @(filter=="Stuck"?"active":"")" @onclick="@(() => SetFilter("Stuck"))">🔴 Stuck (@rows.Count(x=>x.IsStuck))</button>
+        <button class="btn btn-sm btn-outline-light @(filter=="Running"?"active":"")" @onclick="@(() => SetFilter("Running"))">Running (@rows.Count(x=>x.Status=="Running"))</button>
+        <button class="btn btn-sm btn-outline-light @(filter=="Completed"?"active":"")" @onclick="@(() => SetFilter("Completed"))">Completed (@rows.Count(x=>x.Status=="Completed"))</button>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead><tr>
+            <th>Severity</th><th>Workflow</th><th>Folio</th><th>Status</th>
+            <th style="text-align:right">Duration</th><th>Started</th><th>Originator</th>
+        </tr></thead>
+        <tbody>
+            @foreach (var w in Filtered)
+            {
+                <tr>
+                    <td><span class="badge badge-@(w.Severity.ToString().ToLower())">@(w.IsStuck?"STUCK":w.Severity.ToString())</span></td>
+                    <td class="mono">@w.WorkflowName</td>
+                    <td class="mono">@w.Folio</td>
+                    <td><span class="badge @(w.Status=="Running"?"badge-warning":"badge-ok")">@w.Status</span></td>
+                    <td style="text-align:right" class="mono @(w.IsStuck?"sev-critical":w.DurationMs>3600000?"sev-warning":"")">@FormatDuration(w.DurationMs)</td>
+                    <td class="mono">@w.StartedAtUtc?.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                    <td>@w.Originator</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private string filter = "All";
+    private List<K2WorkflowVm> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetK2Workflows();
+    private void SetFilter(string f) => filter = f;
+    private IEnumerable<K2WorkflowVm> Filtered => filter == "All" ? rows : rows.Where(x => filter == "Stuck" ? x.IsStuck : x.Status == filter);
+    private static string FormatDuration(double ms) => ms >= 86400000 ? $"{ms/86400000:0.0}d" : ms >= 3600000 ? $"{ms/3600000:0.0}h" : ms >= 60000 ? $"{ms/60000:0}m" : $"{ms:0}ms";
+}

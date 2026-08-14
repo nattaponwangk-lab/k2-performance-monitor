@@ -1,0 +1,53 @@
+@page "/slow-queries"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Slow Queries — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🐌 Slow Queries</h1>
+        <div class="desc">Query ที่ใช้เวลานาน จาก <code>sys.dm_exec_query_stats</code> — เรียงตาม avg duration</div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>Severity</th><th>Query</th><th>DB</th>
+                <th style="text-align:right">Executions</th>
+                <th style="text-align:right">Avg ms</th>
+                <th style="text-align:right">Max ms</th>
+                <th style="text-align:right">Avg Reads</th>
+                <th>Last Exec</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var q in rows)
+            {
+                <tr>
+                    <td><span class="badge badge-@(q.Severity.ToString().ToLower())">@q.Severity</span></td>
+                    <td class="query-cell">
+                        <div class="mono">@q.QueryHash</div>
+                        <div class="qtxt">@q.QueryText</div>
+                    </td>
+                    <td>@q.DatabaseName</td>
+                    <td style="text-align:right" class="mono">@q.ExecutionCount.ToString("N0")</td>
+                    <td style="text-align:right" class="mono @(q.Severity==Core.Enums.Severity.Critical?"sev-critical":q.Severity==Core.Enums.Severity.Warning?"sev-warning":"")">@q.AvgDurationMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@q.MaxDurationMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@q.AvgLogicalReads.ToString("N0")</td>
+                    <td class="mono">@FormatTime(q.LastExecutionUtc)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<SlowQueryVm> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetSlowQueries();
+    private static string FormatTime(DateTime? t) => t?.ToLocalTime().ToString("HH:mm:ss") ?? "-";
+}

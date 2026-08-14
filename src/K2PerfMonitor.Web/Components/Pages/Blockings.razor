@@ -1,0 +1,64 @@
+@page "/blocking"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Blocking — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🔒 Blocking</h1>
+        <div class="desc">เซสชันที่ block / ถูก block — จาก <code>sys.dm_tran_locks</code> + <code>sys.dm_os_waiting_tasks</code></div>
+    </div>
+    <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+</div>
+
+@if (rows.Count == 0)
+{
+    <div class="panel"><div class="empty">✅ ไม่มี blocking ในขณะนี้</div></div>
+}
+else
+{
+    foreach (var b in rows)
+    {
+        <div class="panel" style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div>
+                    <span class="badge badge-@(b.Severity.ToString().ToLower())">@b.Severity</span>
+                    <span class="mono" style="margin-left:8px;">@b.WaitType</span>
+                    @if (b.RequestedLockMode is not null)
+                    {
+                        <span class="badge badge-info" style="margin-left:4px;">@b.RequestedLockMode</span>
+                    }
+                </div>
+                <div class="mono @(b.WaitDurationMs>60000?"sev-critical":b.WaitDurationMs>30000?"sev-warning":"")">
+                    ⏱ @FormatMs(b.WaitDurationMs)
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr auto 1fr; gap:14px; align-items:center;">
+                <div>
+                    <div class="sev-info" style="font-size:.74rem;">🛑 BLOCKED (session @b.BlockedSessionId)</div>
+                    <div class="code-block">@Truncate(b.BlockedQueryText)</div>
+                    <div class="sev-info" style="font-size:.74rem; margin-top:4px;">@b.BlockedLoginName</div>
+                </div>
+                <div style="font-size:1.6rem; color:var(--warn);">→</div>
+                <div>
+                    <div class="sev-info" style="font-size:.74rem;">🔒 BLOCKING (session @b.BlockingSessionId)</div>
+                    <div class="code-block">@Truncate(b.BlockingQueryText)</div>
+                    <div class="sev-info" style="font-size:.74rem; margin-top:4px;">@b.BlockingLoginName</div>
+                </div>
+            </div>
+            @if (b.Resource is not null)
+            {
+                <div class="sev-info" style="font-size:.74rem; margin-top:8px;">Resource: <span class="mono">@b.Resource</span></div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<BlockingVm> rows = new();
+    protected override void OnInitialized() => Load();
+    private void Load() => rows = Mock.GetBlocking();
+    private static string FormatMs(double ms) => ms >= 1000 ? $"{ms/1000:0.0}s" : $"{ms:0}ms";
+    private static string Truncate(string? s) => string.IsNullOrEmpty(s) ? "" : (s.Length > 200 ? s[..200] + "…" : s);
+}

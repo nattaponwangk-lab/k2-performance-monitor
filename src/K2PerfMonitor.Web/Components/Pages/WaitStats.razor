@@ -1,0 +1,55 @@
+@page "/wait-stats"
+@rendermode InteractiveServer
+@inject MockDataService Mock
+
+<PageTitle>Wait Statistics — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>⏳ Wait Statistics</h1>
+        <div class="desc">เวลาที่ SQL Server รอ resource — จาก <code>sys.dm_os_wait_stats</code> (กรอง benign waits ออกแล้ว)</div>
+    </div>
+    <div class="btn-group">
+        <button class="btn btn-sm btn-outline-light @(!showBenign?"active":"")" @onclick="()=>showBenign=false">เฉพาะที่น่ากังวล</button>
+        <button class="btn btn-sm btn-outline-light @(showBenign?"active":"")" @onclick="()=>showBenign=true">ทั้งหมด</button>
+    </div>
+</div>
+
+<div class="panel">
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>Wait Type</th><th>Category</th>
+                <th style="text-align:right">Tasks</th>
+                <th style="text-align:right">Wait ms</th>
+                <th style="text-align:right">Signal ms</th>
+                <th style="text-align:right">%</th>
+                <th style="width:160px">สัดส่วน</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var w in Filtered)
+            {
+                <tr>
+                    <td class="mono">@w.WaitType</td>
+                    <td><span class="badge @(w.IsBenign?"badge-info":"badge-warning")">@w.Category</span></td>
+                    <td style="text-align:right" class="mono">@w.WaitingTasksCount.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@w.WaitTimeMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@w.SignalWaitTimeMs.ToString("N0")</td>
+                    <td style="text-align:right" class="mono">@w.WaitPercent.ToString("0.0")%</td>
+                    <td>
+                        <div class="bar"><span style="width:@(Math.Min(w.WaitPercent*3,100))%; background:@(w.WaitPercent>15?"var(--warn)":"var(--accent)")"></span></div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<WaitStatVm> rows = new();
+    private bool showBenign = false;
+    protected override void OnInitialized() => rows = Mock.GetWaitStats();
+    private void Load() => rows = Mock.GetWaitStats();
+    private IReadOnlyList<WaitStatVm> Filtered => showBenign ? rows : rows.Where(x => !x.IsBenign).ToList();
+}
