@@ -1,6 +1,6 @@
 # ---- K2 Performance Monitor — Web (Blazor dashboard + SignalR hub) ----
 # multi-stage: build ด้วย SDK, run ด้วย ASP.NET runtime (image เล็ก)
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # copy csproj ก่อน (layer cache สำหรับ restore)
@@ -18,7 +18,7 @@ RUN dotnet restore src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj
 COPY src/ src/
 RUN dotnet publish src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj -c Release -o /app /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 # run แบบ non-root (secure by default)
 RUN adduser --disabled-password --gecos "" appuser

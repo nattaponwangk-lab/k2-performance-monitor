@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-K2PerfMonitor.Worker-714132a6-4529-47ee-9b28-845038f341ca</UserSecretsId>
@@ -10,11 +10,13 @@
   <ItemGroup>
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Hangfire.NetCore" Version="1.8.23" />
+    <!-- override transitive Newtonsoft.Json 11.0.1 (Hangfire) — fixes GHSA-5crp-9r3c-p9vr -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.23" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.*" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.*" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.*" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.*" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="9.*" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.*" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.*" />
