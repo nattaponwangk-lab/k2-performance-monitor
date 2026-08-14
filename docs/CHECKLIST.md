@@ -71,12 +71,14 @@
 - [x] **ลบ `MockDataService` ออกแล้ว** · หน้า K2 3 หน้าแสดงสถานะ "รอ verify K2 source" (ไม่ใช้ mock)
 - [x] Verify: รัน Worker เก็บข้อมูลจริงบน LocalDB → เปิด Web เห็น real data (CPU 32%, 240 slow queries, alert จริง)
 
-## Phase 7 — K2-Specific Monitoring
-- [ ] **Spike/PoC:** ยืนยันแหล่งข้อมูล K2 (host DB / runtime / API)
-- [ ] K2WorkflowCollector (duration, stuck/errored)
-- [ ] K2SmartFormCollector (form load)
-- [ ] K2SmartObjectCollector (SMO call time)
-- [ ] แทน mock 3 หน้า K2 (Workflows/SmartForms/SmartObjects)
+## Phase 7 — K2-Specific Monitoring  ⛔ BLOCKED (external dependency — 2026-08-14)
+> ตามกฎ §16 (STOP AND SPIKE) + §30: **ห้ามเดา schema K2 / ห้ามสร้าง collector จากข้อมูลที่ยังไม่ verify**
+> ไม่มี K2 instance จริงใน repo/environment นี้ → บันทึกเป็น blocked external dependency พร้อมแผน PoC (ดู [docs/collectors.md](collectors.md) §K2)
+- [⛔] **Spike/PoC:** ต้องมี K2 host/runtime DB หรือ API จริงเพื่อยืนยัน schema (blocker)
+- [ ] K2WorkflowCollector (duration, stuck/errored) — ออกแบบ interface ไว้แล้ว, รอ verify source
+- [ ] K2SmartFormCollector (form load) — รอ verify source
+- [ ] K2SmartObjectCollector (SMO call time) — รอ verify source
+- [x] 3 หน้า K2 แสดงสถานะ "รอ verify K2 source" (ไม่ใช้ mock — ตาม §5) แทน mock เดิม
 
 ## Phase 8 — Auth, RBAC & Multi-Instance  🟡 (2026-08-14)
 - [x] Login (cookie auth, PBKDF2 password hash) + role Admin/Operator/Viewer + seed admin จาก config (ไม่ใช้ default password)
