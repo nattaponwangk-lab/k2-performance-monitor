@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\K2PerfMonitor.Collectors\K2PerfMonitor.Collectors.csproj" />
     <ProjectReference Include="..\..\src\K2PerfMonitor.Notifications\K2PerfMonitor.Notifications.csproj" />
     <ProjectReference Include="..\..\src\K2PerfMonitor.Worker\K2PerfMonitor.Worker.csproj" />
+    <ProjectReference Include="..\..\src\K2PerfMonitor.Web\K2PerfMonitor.Web.csproj" />
   </ItemGroup>
 
 </Project>

@@ -144,3 +144,5 @@
 .nav-user { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); font-size: .82rem; }
 .nav-user .logout-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: 5px 10px; cursor: pointer; width: 100%; margin-top: 8px; }
 .nav-user .logout-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.sb { display:flex; justify-content:space-between; }

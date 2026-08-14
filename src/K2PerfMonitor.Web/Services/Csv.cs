@@ -16,6 +16,11 @@ public static class Csv
 
     private static string Escape(string field)
     {
+        // CSV injection: ค่าที่ขึ้นต้นด้วย = + - @ (หรือ tab/CR) อาจถูก spreadsheet ตีความเป็นสูตร
+        // → prefix ด้วย single quote เพื่อ neutralize (ข้อมูล query/login มาจาก source ที่ควบคุมไม่ได้)
+        if (field.Length > 0 && (field[0] is '=' or '+' or '-' or '@' or '\t' or '\r'))
+            field = "'" + field;
+
         if (field.Contains('"') || field.Contains(',') || field.Contains('\n') || field.Contains('\r'))
             return "\"" + field.Replace("\"", "\"\"") + "\"";
         return field;

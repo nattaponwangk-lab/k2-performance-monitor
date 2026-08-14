@@ -1,89 +1,115 @@
 @page "/settings"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
+@using K2PerfMonitor.Core.Options
+@inject AlertRuleService Rules
+@inject Microsoft.Extensions.Options.IOptions<CollectorScheduleOptions> ScheduleOpt
+@inject Microsoft.Extensions.Options.IOptions<EmailOptions> EmailOpt
+@inject Microsoft.Extensions.Options.IOptions<TeamsOptions> TeamsOpt
+@inject Microsoft.Extensions.Options.IOptions<LineOptions> LineOpt
 
 <PageTitle>Settings — K2 Performance Monitor</PageTitle>
 
 <div class="page-head">
     <div>
         <h1>⚙️ Settings</h1>
-        <div class="desc">ตั้งค่าระบบ — Connection strings, Notification channels, Alert rules, Collector intervals</div>
+        <div class="desc">การตั้งค่าจริงของระบบ — schedule, notification, retention, alert rules (Admin)</div>
     </div>
 </div>
 
 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
     <div class="panel">
-        <div class="panel-title">Connection Strings</div>
-        <div class="panel-sub">กำหนด SQL Server instances สำหรับ monitoring</div>
-        <div style="display:flex; flex-direction:column; gap:12px;">
-            <div>
-                <label class="sev-info" style="font-size:.78rem;">Monitor DB (เก็บ metrics)</label>
-                <input class="form-control form-control-sm" placeholder="Server=.;Database=K2PerfMonitor;Trusted_Connection=true;" disabled value="*** mock mode ***" />
-            </div>
-            <div>
-                <label class="sev-info" style="font-size:.78rem;">Source DB (DMV queries)</label>
-                <input class="form-control form-control-sm" placeholder="Server=.;Database=K2;Trusted_Connection=true;" disabled value="*** mock mode ***" />
-            </div>
-            <div>
-                <label class="sev-info" style="font-size:.78rem;">K2 Database</label>
-                <input class="form-control form-control-sm" placeholder="Server=.;Database=K2;Trusted_Connection=true;" disabled value="*** mock mode ***" />
-            </div>
-        </div>
+        <div class="panel-title">Connection / Instances</div>
+        <div class="panel-sub">connection string ไม่แสดง plaintext (ความปลอดภัย)</div>
+        <p style="font-size:.85rem;">จัดการ SQL/K2 instance ที่ monitor (เข้ารหัส credential) ได้ที่หน้า
+            <a href="/instances" class="badge badge-info">🖥️ Instances →</a></p>
+        <div class="sev-info" style="font-size:.78rem;">Monitor DB + Source DB ตั้งผ่าน env/appsettings (<code>ConnectionStrings__*</code>)</div>
     </div>
 
     <div class="panel">
         <div class="panel-title">Notification Channels</div>
-        <div class="panel-sub">กำหนดช่องทางการแจ้งเตือน</div>
-        <div style="display:flex; flex-direction:column; gap:12px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <input type="checkbox" checked disabled />
-                <span style="min-width:60px; font-weight:600;">LINE</span>
-                <input class="form-control form-control-sm" disabled value="*** mock mode ***" />
-                <span class="badge badge-ok">Active</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <input type="checkbox" checked disabled />
-                <span style="min-width:60px; font-weight:600;">Teams</span>
-                <input class="form-control form-control-sm" disabled value="*** mock mode ***" />
-                <span class="badge badge-ok">Active</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <input type="checkbox" checked disabled />
-                <span style="min-width:60px; font-weight:600;">Email</span>
-                <input class="form-control form-control-sm" disabled value="*** mock mode ***" />
-                <span class="badge badge-ok">Active</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-title">Collector Intervals</div>
-        <div class="panel-sub">รอบเวลาเก็บข้อมูล (วินาที)</div>
+        <div class="panel-sub">สถานะจริงจาก config (เปิด/ปิด)</div>
         <div style="display:flex; flex-direction:column; gap:10px;">
-            <div style="display:flex; justify-content:space-between;"><span>🖥️ Server Stats (CPU/RAM)</span><span class="mono">15s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>🐌 Slow Queries</span><span class="mono">60s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>⏳ Wait Stats</span><span class="mono">60s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>🔒 Blocking</span><span class="mono">30s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>💀 Deadlocks</span><span class="mono">120s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>📇 Indexes</span><span class="mono">300s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>💾 I/O</span><span class="mono">120s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>⚙️ Stored Procs</span><span class="mono">120s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>🔄 K2 Workflows</span><span class="mono">60s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>📋 K2 SmartForms</span><span class="mono">120s</span></div>
-            <div style="display:flex; justify-content:space-between;"><span>🧱 K2 SmartObjects</span><span class="mono">120s</span></div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="min-width:60px; font-weight:600;">Email</span>
+                <span class="badge badge-@(EmailOpt.Value.Enabled?"ok":"warning")">@(EmailOpt.Value.Enabled ? "Enabled" : "Disabled")</span>
+                <span class="mono" style="font-size:.78rem;opacity:.7">@(string.IsNullOrEmpty(EmailOpt.Value.Host) ? "(ยังไม่ตั้ง host)" : EmailOpt.Value.Host)</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="min-width:60px; font-weight:600;">Teams</span>
+                <span class="badge badge-@(TeamsOpt.Value.Enabled?"ok":"warning")">@(TeamsOpt.Value.Enabled ? "Enabled" : "Disabled")</span>
+                <span class="mono" style="font-size:.78rem;opacity:.7">@(TeamsOpt.Value.Enabled ? "webhook ตั้งค่าแล้ว" : "(ปิด)")</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="min-width:60px; font-weight:600;">LINE</span>
+                <span class="badge badge-@(LineOpt.Value.Enabled?"ok":"warning")">@(LineOpt.Value.Enabled ? "Enabled" : "Disabled")</span>
+                <span class="mono" style="font-size:.78rem;opacity:.7">@(LineOpt.Value.Enabled ? "token ตั้งค่าแล้ว" : "(ปิด)")</span>
+            </div>
+        </div>
+        <div class="sev-info" style="font-size:.75rem;margin-top:10px;">credential ตั้งผ่าน env — ดู docs/notifications-setup.md</div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-title">Collector Intervals (จริงจาก config)</div>
+        <div class="panel-sub">รอบเวลาเก็บข้อมูล (วินาที)</div>
+        @{ var s = ScheduleOpt.Value; }
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:.9rem;">
+            <div class="sb"><span>🖥️ Server Stats</span><span class="mono">@s.ServerStatsIntervalSeconds s</span></div>
+            <div class="sb"><span>🐌 Slow Queries</span><span class="mono">@s.SlowQueryIntervalSeconds s</span></div>
+            <div class="sb"><span>⏳ Wait Stats</span><span class="mono">@s.WaitStatsIntervalSeconds s</span></div>
+            <div class="sb"><span>🔒 Blocking</span><span class="mono">@s.BlockingIntervalSeconds s</span></div>
+            <div class="sb"><span>💀 Deadlocks</span><span class="mono">@s.DeadlockIntervalSeconds s</span></div>
+            <div class="sb"><span>📇 Indexes</span><span class="mono">@s.IndexIntervalSeconds s</span></div>
+            <div class="sb"><span>💾 I/O</span><span class="mono">@s.IoIntervalSeconds s</span></div>
+            <div class="sb"><span>⚙️ Stored Procs</span><span class="mono">@s.StoredProcedureIntervalSeconds s</span></div>
+            <div class="sb"><span>TopN / Slow threshold</span><span class="mono">@s.TopN / @s.SlowQueryThresholdMs ms</span></div>
         </div>
     </div>
 
     <div class="panel">
-        <div class="panel-title">Data Retention</div>
-        <div class="panel-sub">ล้างข้อมูลเก่าตามจำนวนวัน</div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span>ล้างข้อมูลที่เก่ากว่า</span>
-            <input class="form-control form-control-sm" style="width:80px; text-align:center;" disabled value="30" />
-            <span>วัน</span>
-        </div>
-        <div style="margin-top:14px;">
-            <div class="sev-info" style="font-size:.78rem;">Alert rules มีอยู่ 15 กฎ (default) — สามารถปรับในหน้า Settings ภายหลังได้</div>
-        </div>
+        <div class="panel-title">Data Retention (จริงจาก config)</div>
+        <div class="panel-sub">ล้างข้อมูลเก่าอัตโนมัติ (RetentionJob รายวัน) + rollup 5m/1h</div>
+        <div style="font-size:.9rem;">ล้างข้อมูลที่เก่ากว่า <strong>@ScheduleOpt.Value.RetentionDays วัน</strong></div>
     </div>
 </div>
+
+<div class="panel" style="margin-top:16px;">
+    <div class="panel-title">Alert Rules (จริงจาก DB — แก้ไขได้)</div>
+    <div class="panel-sub">เปิด/ปิด rule และปรับ threshold</div>
+    @if (rules is null) { <div class="empty">⏳ กำลังโหลด...</div> }
+    else
+    {
+        <table class="tbl">
+            <thead><tr><th>ระบบ</th><th>ชื่อ</th><th>Field</th><th>เงื่อนไข</th><th style="text-align:right">Threshold</th><th>Severity</th><th>สถานะ</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var r in rules)
+                {
+                    <tr>
+                        <td>@r.CollectorType</td>
+                        <td>@r.Name</td>
+                        <td class="mono">@r.MetricField</td>
+                        <td class="mono">@r.Operator</td>
+                        <td style="text-align:right" class="mono">
+                            <input class="inp" style="width:110px;text-align:right" type="number" value="@r.Threshold"
+                                   @onchange="e => UpdateThreshold(r.Id, e.Value?.ToString())" />
+                        </td>
+                        <td><span class="badge badge-@(r.Severity.ToString().ToLower())">@r.Severity</span></td>
+                        <td><span class="badge badge-@(r.Enabled?"ok":"warning")">@(r.Enabled ? "On" : "Off")</span></td>
+                        <td><button class="btn btn-sm btn-outline-light" @onclick="() => Toggle(r.Id, !r.Enabled)">@(r.Enabled ? "Disable" : "Enable")</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private List<AlertRuleEntity>? rules;
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { rules = null; rules = await Rules.GetAllAsync(); }
+    private async Task Toggle(long id, bool enabled) { await Rules.SetEnabledAsync(id, enabled); await Load(); }
+    private async Task UpdateThreshold(long id, string? val)
+    {
+        if (double.TryParse(val, out var t)) { await Rules.UpdateThresholdAsync(id, t); await Load(); }
+    }
+}

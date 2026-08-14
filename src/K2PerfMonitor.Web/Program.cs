@@ -31,6 +31,12 @@ builder.Services.AddOptions<ConnectionStringsOptions>()
 var monitorConn = builder.Configuration.GetConnectionString("MonitorDb")
     ?? throw new InvalidOperationException("ConnectionStrings:MonitorDb is required");
 
+// bind options for read-only display ในหน้า Settings (schedule + notification channel status)
+builder.Services.Configure<CollectorScheduleOptions>(builder.Configuration.GetSection(CollectorScheduleOptions.SectionName));
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.Configure<TeamsOptions>(builder.Configuration.GetSection(TeamsOptions.SectionName));
+builder.Services.Configure<LineOptions>(builder.Configuration.GetSection(LineOptions.SectionName));
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -50,6 +56,7 @@ builder.Services.AddScoped<AlertService>();         // Alerts + acknowledge
 // ---- Auth / RBAC (Phase 8) ----
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<InstanceService>();
+builder.Services.AddScoped<AlertRuleService>();
 // Data Protection — persist keys ให้ cookie/credential ถอดรหัสได้ข้าม restart/instance
 var keyPath = builder.Configuration["DataProtection:KeyPath"]
     ?? Path.Combine(builder.Environment.ContentRootPath, "keys");
