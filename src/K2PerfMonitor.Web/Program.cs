@@ -44,9 +44,9 @@ builder.Services.AddScoped<ServerStatsService>();   // Overview + CPU/RAM
 builder.Services.AddScoped<MetricQueryService>();   // SQL metric pages
 builder.Services.AddScoped<AlertService>();         // Alerts + acknowledge
 
-// Health checks (/health) — ตรวจการเชื่อมต่อ Monitoring DB
+// Health checks — liveness (process) + readiness (Monitoring DB)
 builder.Services.AddHealthChecks()
-    .AddCheck<MonitorDbHealthCheck>("monitor-db");
+    .AddCheck<MonitorDbHealthCheck>("monitor-db", tags: new[] { "ready" });
 
 // ---- Hangfire dashboard (jobs รันโดย Worker; ที่นี่แสดง dashboard อย่างเดียว) ----
 builder.Services.AddHangfire(cfg => cfg
@@ -56,12 +56,28 @@ builder.Services.AddHangfire(cfg => cfg
     .UseSqlServerStorage(monitorConn, new SqlServerStorageOptions
     {
         SchemaName = "HangFire",
-        PrepareSchemaIfNecessary = false, // Worker เป็นเจ้าของการติดตั้ง schema; Web เป็น dashboard อย่างเดียว
+        PrepareSchemaIfNecessary = true, // idempotent — กัน race ตอน compose start web/worker พร้อมกัน
         UseRecommendedIsolationLevel = true,
         DisableGlobalLocks = true
     }));
 
 var app = builder.Build();
+
+// ---- Apply EF migrations on startup (idempotent; EF ใช้ migration lock กัน concurrent) ----
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MonitorDbContext>>();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        await db.Database.MigrateAsync();
+        Log.Information("Monitoring DB migrations applied (Web startup)");
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Could not apply migrations on Web startup — will rely on Worker (dashboard may be degraded until DB ready)");
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -81,6 +97,15 @@ app.MapHub<K2PerfMonitor.Realtime.MonitorHub>("/hubs/monitor");
 // Hangfire dashboard — เข้าถึงได้จากเครื่อง local เท่านั้นตาม default (Phase 8 จะผูก RBAC)
 app.UseHangfireDashboard("/hangfire");
 
+// /health = ทุก check · /health/live = process ยังอยู่ (ไม่แตะ DB) · /health/ready = พร้อมรับงาน (DB ต่อได้)
 app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
 
 app.Run();

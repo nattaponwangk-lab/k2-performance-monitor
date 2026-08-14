@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/logs/
+**/.vs/
+**/.git/
+.git/
+.github/
+**/*.user
+**/appsettings.*.local.json
+**/.env
+**/.env.*
+tests/
+docs/
+*.md

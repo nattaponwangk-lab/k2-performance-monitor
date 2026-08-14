@@ -84,12 +84,12 @@
 - [ ] รองรับหลาย SQL/K2 instance (เลือกดูรายเครื่อง)
 - [ ] เข้ารหัส credential (Data Protection) — ห้าม plaintext/log
 
-## Phase 9 — Packaging, Deploy & Observability
-- [ ] Dockerfile (web + worker)
-- [ ] docker-compose (+ SQL Server)
-- [ ] Config ผ่าน env + migrate-on-startup ที่ปลอดภัย
-- [ ] Health/readiness probe + self-monitoring
-- [ ] เอกสารติดตั้ง/ใช้งาน + backup/restore
+## Phase 9 — Packaging, Deploy & Observability  🟡 (2026-08-14)
+- [x] Dockerfile (web + worker) — multi-stage, non-root, .NET 9 runtime · **worker image build ผ่าน**
+- [x] docker-compose (+ SQL Server 2022) — healthcheck, depends_on, restart policy
+- [x] Config ผ่าน env (`ConnectionStrings__*`, `SignalR__*`) + migrate-on-startup ปลอดภัย (Web+Worker, EF migration lock)
+- [x] Health/readiness probe (`/health`, `/health/live`, `/health/ready`) + self-monitoring (`CollectorRuns` audit + Serilog)
+- [ ] เอกสารติดตั้ง/ใช้งาน + backup/restore (อยู่ใน docs batch — Phase 10)
 
 ## Phase 10 — Hardening & Release
 - [ ] Security review (secret, SQL injection surface, XSS)

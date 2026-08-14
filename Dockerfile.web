@@ -1,0 +1,30 @@
+# ---- K2 Performance Monitor — Web (Blazor dashboard + SignalR hub) ----
+# multi-stage: build ด้วย SDK, run ด้วย ASP.NET runtime (image เล็ก)
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+
+# copy csproj ก่อน (layer cache สำหรับ restore)
+COPY K2PerformanceMonitor.sln ./
+COPY src/K2PerfMonitor.Core/K2PerfMonitor.Core.csproj              src/K2PerfMonitor.Core/
+COPY src/K2PerfMonitor.Data/K2PerfMonitor.Data.csproj              src/K2PerfMonitor.Data/
+COPY src/K2PerfMonitor.Collectors/K2PerfMonitor.Collectors.csproj  src/K2PerfMonitor.Collectors/
+COPY src/K2PerfMonitor.Alerts/K2PerfMonitor.Alerts.csproj          src/K2PerfMonitor.Alerts/
+COPY src/K2PerfMonitor.Notifications/K2PerfMonitor.Notifications.csproj src/K2PerfMonitor.Notifications/
+COPY src/K2PerfMonitor.Realtime/K2PerfMonitor.Realtime.csproj      src/K2PerfMonitor.Realtime/
+COPY src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj                src/K2PerfMonitor.Web/
+RUN dotnet restore src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj
+
+# copy ที่เหลือแล้ว publish
+COPY src/ src/
+RUN dotnet publish src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj -c Release -o /app /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+# run แบบ non-root (secure by default)
+RUN adduser --disabled-password --gecos "" appuser
+COPY --from=build /app ./
+ENV ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 8080
+USER appuser
+ENTRYPOINT ["dotnet", "K2PerfMonitor.Web.dll"]
