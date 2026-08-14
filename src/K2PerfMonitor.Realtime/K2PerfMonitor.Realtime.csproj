@@ -4,6 +4,14 @@
     <ProjectReference Include="..\K2PerfMonitor.Core\K2PerfMonitor.Core.csproj" />
   </ItemGroup>
 
+  <!-- Hub types (server) need ASP.NET Core; SignalR .Client for the Worker publisher -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.*" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

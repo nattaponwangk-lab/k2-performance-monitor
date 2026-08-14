@@ -1,8 +1,11 @@
 @page "/"
 @rendermode InteractiveServer
 @using K2PerfMonitor.Web.Services
+@using Microsoft.AspNetCore.SignalR.Client
 @inject ServerStatsService Stats
 @inject AlertService AlertSvc
+@inject NavigationManager Nav
+@implements IAsyncDisposable
 
 <PageTitle>Overview — K2 Performance Monitor</PageTitle>
 
@@ -14,6 +17,10 @@
             @if (isRealData)
             {
                 <span class="badge badge-ok" style="margin-left:8px;">● REAL DATA @(@data.InstanceName)</span>
+                @if (liveConnected)
+                {
+                    <span class="badge badge-ok" style="margin-left:6px;">📡 LIVE</span>
+                }
             }
             else
             {
@@ -124,10 +131,62 @@ else
     private List<Alert> alerts = new();
     private bool loading = true;
     private bool isRealData = false;
+    private HubConnection? hub;
+    private bool liveConnected = false;
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
+        await ConnectRealtimeAsync();
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        try
+        {
+            hub = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/monitor"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            hub.On<MetricSnapshotDto>(RealtimeMessages.ReceiveSnapshot, snapshot =>
+            {
+                if (snapshot.CollectorType != CollectorType.ServerStats) return;
+                if (snapshot.Metrics.TryGetValue(MetricFields.CpuPercent, out var cpu)) data.CpuPercent = cpu;
+                if (snapshot.Metrics.TryGetValue(MetricFields.MemoryPercent, out var mem)) data.MemoryPercent = mem;
+                if (snapshot.Metrics.TryGetValue(MetricFields.AvailableMemoryMb, out var avail)) data.AvailableMemoryMb = avail;
+                data.CpuHistory.Add(new ChartPoint { Time = snapshot.CollectedAtUtc, Value = data.CpuPercent });
+                data.MemoryHistory.Add(new ChartPoint { Time = snapshot.CollectedAtUtc, Value = data.MemoryPercent });
+                if (data.CpuHistory.Count > 30) data.CpuHistory.RemoveAt(0);
+                if (data.MemoryHistory.Count > 30) data.MemoryHistory.RemoveAt(0);
+                InvokeAsync(StateHasChanged);
+            });
+
+            hub.On<AlertDto>(RealtimeMessages.ReceiveAlert, dto =>
+            {
+                data.ActiveAlertCount++;
+                if (dto.Severity == Severity.Critical) data.CriticalAlertCount++;
+                alerts.Insert(0, new Alert
+                {
+                    Id = dto.Id, CollectorType = dto.CollectorType, Severity = dto.Severity,
+                    Title = dto.Title, Summary = dto.Summary, RaisedAtUtc = dto.RaisedAtUtc, Status = AlertStatus.New
+                });
+                InvokeAsync(StateHasChanged);
+            });
+
+            await hub.StartAsync();
+            liveConnected = true;
+            StateHasChanged();
+        }
+        catch
+        {
+            liveConnected = false; // realtime optional — หน้ายังใช้ refresh ได้
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null) await hub.DisposeAsync();
     }
 
     private async Task RefreshAsync()

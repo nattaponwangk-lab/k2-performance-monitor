@@ -57,10 +57,11 @@
 - [ ] Notification retry/queue (ตอนนี้ log อย่างเดียวเมื่อ fail) — ค้าง Phase 4 เต็ม
 - [ ] E2E จริง 3 ช่องทาง (ต้องตั้ง credential + verify เอง)
 
-## Phase 5 — Real-time (SignalR)
-- [ ] Implement `IRealtimePublisher` + SignalR hub
-- [ ] push metric ล่าสุด + alert ใหม่ (throttle + backpressure)
-- [ ] Web subscribe live — Overview/CPU-RAM auto-update
+## Phase 5 — Real-time (SignalR)  ✅ (2026-08-14)
+- [x] Implement `IRealtimePublisher` (SignalR client) + `MonitorHub` (relay) + `NullRealtimePublisher`
+- [x] push metric ล่าสุด + alert ใหม่ (throttle 1/s ต่อ collector + best-effort/backpressure — realtime ล้มไม่กระทบ collector)
+- [x] Web subscribe live — Overview auto-update (📡 LIVE badge, CPU/mem trend + alert toast)
+- [x] Verify: Worker→hub→browser เห็นค่า CPU อัปเดตสด (verified บน LocalDB)
 
 ## Phase 6 — Web: แทน Mock ด้วยข้อมูลจริง  ✅ (2026-08-14)
 - [x] SlowQueries  - [x] ExecutionPlans  - [x] WaitStats  - [x] Blockings

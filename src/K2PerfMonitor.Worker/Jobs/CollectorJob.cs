@@ -20,6 +20,7 @@ public sealed class CollectorJob
     private readonly IMetricRepository _repo;
     private readonly IAlertEvaluator _alertEvaluator;
     private readonly IAlertNotifier _alertNotifier;
+    private readonly IRealtimePublisher _realtime;
     private readonly IDbContextFactory<MonitorDbContext> _dbFactory;
     private readonly ILogger<CollectorJob> _logger;
 
@@ -28,6 +29,7 @@ public sealed class CollectorJob
         IMetricRepository repo,
         IAlertEvaluator alertEvaluator,
         IAlertNotifier alertNotifier,
+        IRealtimePublisher realtime,
         IDbContextFactory<MonitorDbContext> dbFactory,
         ILogger<CollectorJob> logger)
     {
@@ -35,6 +37,7 @@ public sealed class CollectorJob
         _repo = repo;
         _alertEvaluator = alertEvaluator;
         _alertNotifier = alertNotifier;
+        _realtime = realtime;
         _dbFactory = dbFactory;
         _logger = logger;
     }
@@ -74,6 +77,7 @@ public sealed class CollectorJob
                     "{Collector} collected {Items} items in {Ms:0}ms",
                     collector.DisplayName, result.Items.Count, result.Elapsed.TotalMilliseconds);
 
+                await _realtime.PublishSnapshotAsync(result, ct); // best-effort live push
                 await EvaluateAlertsAsync(result, ct);
             }
             else
@@ -121,6 +125,7 @@ public sealed class CollectorJob
             {
                 var persisted = await _repo.UpsertAlertAsync(alert, ct);
                 await _alertNotifier.NotifyAsync(persisted, ct);
+                await _realtime.PublishAlertAsync(persisted, ct); // live toast/banner
             }
 
             var firingKeys = firing.Select(a => a.DedupKey).ToArray();

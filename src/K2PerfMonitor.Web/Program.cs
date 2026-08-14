@@ -32,6 +32,9 @@ var monitorConn = builder.Configuration.GetConnectionString("MonitorDb")
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// SignalR — hub ที่ Worker (client) ส่ง snapshot/alert เข้ามา แล้ว relay ให้ browser
+builder.Services.AddSignalR();
+
 // EF Core — Monitoring DB
 builder.Services.AddDbContextFactory<MonitorDbContext>(options =>
     options.UseSqlServer(monitorConn));
@@ -71,6 +74,9 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// SignalR hub — real-time metric/alert relay
+app.MapHub<K2PerfMonitor.Realtime.MonitorHub>("/hubs/monitor");
 
 // Hangfire dashboard — เข้าถึงได้จากเครื่อง local เท่านั้นตาม default (Phase 8 จะผูก RBAC)
 app.UseHangfireDashboard("/hangfire");

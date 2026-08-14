@@ -4,6 +4,7 @@ using K2PerfMonitor.Alerts;
 using K2PerfMonitor.Collectors;
 using K2PerfMonitor.Notifications;
 using K2PerfMonitor.Notifications.Providers;
+using K2PerfMonitor.Realtime;
 using K2PerfMonitor.Core.Enums;
 using K2PerfMonitor.Core.Interfaces;
 using K2PerfMonitor.Core.Options;
@@ -66,6 +67,9 @@ builder.Services.AddSingleton<INotificationProvider, EmailNotificationProvider>(
 builder.Services.AddSingleton<INotificationProvider, TeamsNotificationProvider>();
 builder.Services.AddSingleton<INotificationProvider, LineNotificationProvider>();
 builder.Services.AddScoped<IAlertNotifier, AlertNotificationService>();
+
+// ---- Realtime publisher (SignalR client → Web hub) — Null ถ้า SignalR:Enabled=false ----
+builder.Services.AddRealtimePublisher(builder.Configuration);
 
 // ---- Hangfire (SQL Server storage) ----
 builder.Services.AddHangfire(cfg => cfg
