@@ -50,6 +50,15 @@
 
 ---
 
+## Progress (อัปเดต 2026-08-14 · v0.9.0)
+
+| Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| สถานะ | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ⛔ | 🟡 | ✅ | ✅* |
+
+✅ complete · 🟡 partial (ระบุใน [PROJECT_STATE](../PROJECT_STATE.md)) · ⛔ blocked external dependency (K2 — ต้อง verify schema จริง)
+`*` = มีส่วนที่ต้อง verify ในสภาพแวดล้อมจริง (notification credential / UAT). Build: Release 0 warnings · Tests: 64 passed
+
 ## 4. Phases (10 เฟส)
 
 ลำดับออกแบบให้ **เดินได้ทีละชั้นและเห็นผลจริงเร็ว** — ทำ foundation ให้แข็งก่อน แล้วเดิน pipeline end-to-end บน collector เดียว ก่อนขยายไปครบ 12 ตัว

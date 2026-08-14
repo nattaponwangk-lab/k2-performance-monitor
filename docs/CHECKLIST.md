@@ -93,7 +93,9 @@
 - [x] Health/readiness probe (`/health`, `/health/live`, `/health/ready`) + self-monitoring (`CollectorRuns` audit + Serilog)
 - [ ] เอกสารติดตั้ง/ใช้งาน + backup/restore (อยู่ใน docs batch — Phase 10)
 
-## Phase 10 — Hardening & Release
-- [ ] Security review (secret, SQL injection surface, XSS)
-- [ ] Performance tuning + resilience (source DB ล่ม → ไม่ crash)
-- [ ] UAT + release checklist + versioning
+## Phase 10 — Hardening & Release  🟡 (2026-08-14)
+- [x] Security review (secret handling, SQL injection surface, XSS) — ดู [docs/security.md](security.md) (clean: parameterized, no MarkupString, no secret logging)
+- [x] Resilience — source ล่ม → collector fail (worker/web ยังทำงาน) · notification/realtime ล้ม best-effort · verified
+- [x] Documentation ครบ (11 docs + 3 ADR + README) + backup/restore
+- [x] Release checklist ([RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md)) + versioning (v0.9.0)
+- [~] UAT — ต้องทำในสภาพแวดล้อมจริง (มี smoke + integration + E2E verify บน LocalDB แล้ว)
