@@ -21,6 +21,7 @@ public class MonitorDbContext : DbContext
     public DbSet<IndexRecommendationEntity> IndexRecommendations => Set<IndexRecommendationEntity>();
     public DbSet<IoStatEntity> IoStats => Set<IoStatEntity>();
     public DbSet<ServerStatEntity> ServerStats => Set<ServerStatEntity>();
+    public DbSet<ServerStatRollupEntity> ServerStatRollups => Set<ServerStatRollupEntity>();
     public DbSet<StoredProcedureStatEntity> StoredProcedureStats => Set<StoredProcedureStatEntity>();
     public DbSet<K2WorkflowStatEntity> K2WorkflowStats => Set<K2WorkflowStatEntity>();
     public DbSet<K2SmartFormStatEntity> K2SmartFormStats => Set<K2SmartFormStatEntity>();

@@ -1,3 +1,4 @@
+using K2PerfMonitor.Core.Enums;
 using K2PerfMonitor.Core.Extensions;
 using K2PerfMonitor.Core.Interfaces;
 using K2PerfMonitor.Core.Models;
@@ -36,13 +37,29 @@ public sealed class AlertEvaluator : IAlertEvaluator
             .Where(r => r.Enabled && r.CollectorType == result.CollectorType)
             .ToListAsync(cancellationToken);
 
-        return rules.Count == 0 ? Array.Empty<Alert>() : Match(result, rules);
+        if (rules.Count == 0) return Array.Empty<Alert>();
+
+        // hysteresis: โหลด dedup key ของ alert ที่ยัง active → กัน flapping รอบ threshold
+        var activeKeys = await db.Alerts
+            .AsNoTracking()
+            .Where(a => a.CollectorType == result.CollectorType && a.Status != Core.Enums.AlertStatus.Resolved)
+            .Select(a => a.DedupKey)
+            .ToHashSetAsync(cancellationToken);
+
+        return Match(result, rules, activeKeys, HysteresisFraction);
     }
+
+    /// <summary>สัดส่วน hold-band (10%) — alert ที่ active อยู่จะยัง firing จนค่าหลุดออกนอกแบนด์นี้</summary>
+    public const double HysteresisFraction = 0.10;
 
     /// <summary>
     /// แกนประเมินแบบ pure (ไม่แตะ DB) — ใช้ทดสอบได้ตรงๆ
     /// </summary>
-    public static IReadOnlyList<Alert> Match(CollectorResult result, IReadOnlyList<AlertRuleEntity> rules)
+    public static IReadOnlyList<Alert> Match(
+        CollectorResult result,
+        IReadOnlyList<AlertRuleEntity> rules,
+        ISet<string>? activeDedupKeys = null,
+        double hysteresisFraction = 0)
     {
         var best = new Dictionary<string, Alert>();
 
@@ -55,10 +72,19 @@ public sealed class AlertEvaluator : IAlertEvaluator
             {
                 if (item.MetricField != rule.MetricField || item.NumericValue is not double value)
                     continue;
-                if (!rule.Operator.Matches(value, rule.Threshold))
-                    continue;
 
                 var dedupKey = $"{result.CollectorType}:{rule.MetricField}:{item.Key}";
+
+                var fires = rule.Operator.Matches(value, rule.Threshold);
+                if (!fires)
+                {
+                    // hysteresis hold: ถ้า alert ยัง active และค่ายังอยู่ในแบนด์ → คง firing (กัน flapping)
+                    var held = hysteresisFraction > 0
+                               && activeDedupKeys is not null
+                               && activeDedupKeys.Contains(dedupKey)
+                               && rule.Operator.Matches(value, HoldThreshold(rule.Threshold, rule.Operator, hysteresisFraction));
+                    if (!held) continue;
+                }
                 var candidate = new Alert
                 {
                     RuleId = rule.Id,
@@ -83,4 +109,17 @@ public sealed class AlertEvaluator : IAlertEvaluator
 
         return best.Values.ToList();
     }
+
+    /// <summary>
+    /// threshold ของ hold-band: ต้องหลุดออกไป <paramref name="fraction"/> จาก threshold เดิม
+    /// ถึงจะ resolve — กัน alert เด้งไปมารอบ threshold
+    ///   GreaterThan/OrEqual: hold = threshold*(1-fraction)  (ต้องลงต่ำกว่านี้ถึง clear)
+    ///   LessThan/OrEqual:    hold = threshold*(1+fraction)  (ต้องขึ้นสูงกว่านี้ถึง clear)
+    /// </summary>
+    internal static double HoldThreshold(double threshold, ComparisonOperator op, double fraction) => op switch
+    {
+        ComparisonOperator.GreaterThan or ComparisonOperator.GreaterThanOrEqual => threshold * (1 - fraction),
+        ComparisonOperator.LessThan or ComparisonOperator.LessThanOrEqual => threshold * (1 + fraction),
+        _ => threshold
+    };
 }

@@ -128,7 +128,13 @@ using (var scope = host.Services.CreateScope())
         job => job.RunAsync(CancellationToken.None),
         Cron.Daily(3)); // 03:00 UTC
 
-    Log.Information("Recurring jobs registered: {Count} collectors + retention (retention {Days}d)",
+    // Rollup ServerStats → 5m/1h ทุก 5 นาที (Phase 2)
+    recurring.AddOrUpdate<RetentionJob>(
+        "maintenance:rollup",
+        job => job.RollupAsync(CancellationToken.None),
+        "*/5 * * * *");
+
+    Log.Information("Recurring jobs registered: {Count} collectors + retention + rollup (retention {Days}d)",
         registry.Registrations.Count, schedule.RetentionDays);
 }
 

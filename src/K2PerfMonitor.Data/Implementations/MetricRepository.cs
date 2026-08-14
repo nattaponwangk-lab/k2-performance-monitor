@@ -444,6 +444,61 @@ public class MetricRepository : IMetricRepository
         return total;
     }
 
+    // ============== Rollup (Phase 2) ==============
+
+    /// <summary>
+    /// ย่อ ServerStats raw → bucket 5 นาที และ 1 ชั่วโมง (avg/max) สำหรับ 3 ชม.ล่าสุด
+    /// idempotent: ลบ bucket ในช่วงที่คำนวณใหม่แล้ว insert ทับ (bucket ที่ยังไม่ปิดจะถูกอัปเดตครั้งถัดไป)
+    /// </summary>
+    public async Task<int> RollupServerStatsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+        var since = DateTime.UtcNow.AddHours(-3);
+
+        var raw = await db.ServerStats.AsNoTracking()
+            .Where(x => x.CollectedAtUtc >= since)
+            .Select(x => new { x.CollectedAtUtc, x.CpuPercent, x.MemoryPercent, x.ConnectionCount, x.BatchRequestsPerSec })
+            .ToListAsync(cancellationToken);
+        if (raw.Count == 0) return 0;
+
+        var written = 0;
+        foreach (var bucketMinutes in new[] { 5, 60 })
+        {
+            var groups = raw
+                .GroupBy(r => FloorToBucket(r.CollectedAtUtc, bucketMinutes))
+                .Select(g => new ServerStatRollupEntity
+                {
+                    BucketStartUtc = g.Key,
+                    BucketMinutes = bucketMinutes,
+                    AvgCpuPercent = Math.Round(g.Average(x => x.CpuPercent), 2),
+                    MaxCpuPercent = g.Max(x => x.CpuPercent),
+                    AvgMemoryPercent = Math.Round(g.Average(x => x.MemoryPercent), 2),
+                    MaxMemoryPercent = g.Max(x => x.MemoryPercent),
+                    AvgConnectionCount = Math.Round(g.Average(x => (double)x.ConnectionCount), 1),
+                    MaxConnectionCount = g.Max(x => x.ConnectionCount),
+                    AvgBatchRequestsPerSec = Math.Round(g.Average(x => x.BatchRequestsPerSec), 1),
+                    SampleCount = g.Count()
+                })
+                .ToList();
+
+            var bucketStarts = groups.Select(g => g.BucketStartUtc).ToHashSet();
+            await db.ServerStatRollups
+                .Where(x => x.BucketMinutes == bucketMinutes && bucketStarts.Contains(x.BucketStartUtc))
+                .ExecuteDeleteAsync(cancellationToken);
+            db.ServerStatRollups.AddRange(groups);
+            written += groups.Count;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return written;
+    }
+
+    private static DateTime FloorToBucket(DateTime utc, int bucketMinutes)
+    {
+        var ticks = TimeSpan.FromMinutes(bucketMinutes).Ticks;
+        return new DateTime(utc.Ticks - utc.Ticks % ticks, DateTimeKind.Utc);
+    }
+
     // ============== Alert entity <-> model mapping ==============
     private static AlertEntity ToEntity(Alert a) => new()
     {

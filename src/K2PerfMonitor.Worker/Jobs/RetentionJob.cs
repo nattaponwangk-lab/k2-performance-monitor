@@ -31,4 +31,11 @@ public sealed class RetentionJob
         var deleted = await _repo.PurgeOldDataAsync(days, ct);
         _logger.LogInformation("Retention job finished — {Deleted} rows purged", deleted);
     }
+
+    /// <summary>Rollup job (Phase 2) — ย่อ ServerStats raw → 5m/1h (รันบ่อยกว่า retention)</summary>
+    public async Task RollupAsync(CancellationToken ct = default)
+    {
+        var buckets = await _repo.RollupServerStatsAsync(ct);
+        _logger.LogInformation("Rollup job finished — {Buckets} ServerStats buckets written", buckets);
+    }
 }

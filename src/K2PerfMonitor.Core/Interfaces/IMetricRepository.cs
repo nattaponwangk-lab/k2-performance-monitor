@@ -35,4 +35,7 @@ public interface IMetricRepository
 
     /// <summary>ล้างข้อมูลเก่าตาม retention policy</summary>
     Task<int> PurgeOldDataAsync(int retentionDays, CancellationToken cancellationToken = default);
+
+    /// <summary>ย่อ ServerStats raw → 5m/1h aggregate (idempotent) คืนจำนวน bucket ที่เขียน</summary>
+    Task<int> RollupServerStatsAsync(CancellationToken cancellationToken = default);
 }

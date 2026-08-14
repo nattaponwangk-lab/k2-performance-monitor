@@ -33,19 +33,19 @@
 - [x] `SqlCollectorBase` — resilience: source ล่ม → Success=false, ไม่ crash worker · SQL injection-safe (parameterized)
 - [x] Verify: 60 tests (unit + integration รันจริงบน SQL Server LocalDB — collect→persist→alert)
 
-## Phase 2 — Persistence, Retention & Rollups
-- [ ] Index/optimize ตาราง metric เพื่อ dashboard query
-- [ ] Retention job (`RetentionDays`) ลบข้อมูลเก่าอัตโนมัติ
-- [ ] Rollup job (raw → 5m/1h aggregate)
-- [ ] Load test 24–48h — ตรวจขนาด DB + query latency
+## Phase 2 — Persistence, Retention & Rollups  ✅ (2026-08-14)
+- [x] Index/optimize ตาราง metric (index บน CollectedAtUtc + composite ทุกตาราง — มีตั้งแต่ Phase 0/1)
+- [x] Retention job (`RetentionDays`) ลบข้อมูลเก่าอัตโนมัติ (ครอบทุกตาราง metric + audit + resolved alerts)
+- [x] Rollup job (ServerStats raw → 5m/1h aggregate, idempotent, ทุก 5 นาที + ตาราง `ServerStatRollups` + migration)
+- [~] Load test 24–48h — verified pipeline เขียนต่อเนื่องได้ (worker รันจริงบน LocalDB); การทดสอบ 24–48h เต็มต้องรันในสภาพแวดล้อม deploy จริง (ดู docs/troubleshooting)
 
 ## Phase 3 — Alert Engine  🟡 (narrow: ServerStats — 2026-07-04)
 - [x] Implement `IAlertEvaluator` ใน `K2PerfMonitor.Alerts` (pure `Match` + rule load)
 - [x] ประเมิน `AlertRule` ทุกรอบ collect (ผูกใน `CollectorJob.EvaluateAlertsAsync`)
 - [x] Dedup (`collector:field:key`) + escalate severity สูงสุด + auto-resolve เมื่อกลับปกติ
 - [x] บันทึก `Alert` ถาวร (`UpsertAlertAsync`/`ResolveMissingAsync`/`PurgeOldDataAsync`) + 6 unit tests
-- [ ] State machine Acknowledged (UI) + hysteresis กัน flapping (ค้างไว้ Phase 3 เต็ม)
-- [ ] ขยายให้ครอบ collector อื่นอัตโนมัติเมื่อเพิ่มใน Phase 1
+- [x] State machine Acknowledged (UI ปุ่ม Ack ในหน้า Alerts) + hysteresis 10% hold-band กัน flapping (+ unit tests)
+- [x] ขยายให้ครอบ collector อื่นอัตโนมัติ (evaluator ทำงานกับทุก CollectorResult — Phase 1 collectors ทั้งหมด)
 
 ## Phase 4 — Notifications  🟡 (narrow: ServerStats — 2026-07-04)
 - [x] EmailProvider (SMTP, HTML body)
@@ -54,8 +54,8 @@
 - [x] Routing ตาม `AlertRule.Channels` flags + cooldown (`LastNotifiedAtUtc` + `CooldownMinutes`) + 5 unit tests
 - [x] `AlertNotificationService` fan-out + `MarkAlertNotified` · wire ใน `CollectorJob` · config disabled-by-default
 - [x] Setup guide: [notifications-setup.md](notifications-setup.md)
-- [ ] Notification retry/queue (ตอนนี้ log อย่างเดียวเมื่อ fail) — ค้าง Phase 4 เต็ม
-- [ ] E2E จริง 3 ช่องทาง (ต้องตั้ง credential + verify เอง)
+- [x] Notification retry (exponential backoff 3 ครั้ง/provider + failure logging)
+- [~] E2E จริง 3 ช่องทาง — **blocked**: ต้องใช้ credential จริง (Email/Teams/LINE) + verify ในสภาพแวดล้อมจริง (providers + retry unit-tested แล้ว)
 
 ## Phase 5 — Real-time (SignalR)  ✅ (2026-08-14)
 - [x] Implement `IRealtimePublisher` (SignalR client) + `MonitorHub` (relay) + `NullRealtimePublisher`

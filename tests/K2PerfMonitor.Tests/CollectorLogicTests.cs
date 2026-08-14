@@ -102,6 +102,58 @@ public class CollectorRegistryMappingTests
     }
 }
 
+public class AlertHysteresisTests
+{
+    [Theory]
+    [InlineData(K2PerfMonitor.Core.Enums.ComparisonOperator.GreaterThan, 80, 0.1, 72)]   // 80*(1-0.1)
+    [InlineData(K2PerfMonitor.Core.Enums.ComparisonOperator.LessThan, 500, 0.1, 550)]    // 500*(1+0.1)
+    [InlineData(K2PerfMonitor.Core.Enums.ComparisonOperator.Equals, 100, 0.1, 100)]      // no band
+    public void HoldThreshold_widens_toward_ok_side(K2PerfMonitor.Core.Enums.ComparisonOperator op, double threshold, double frac, double expected)
+        => Assert.Equal(expected, K2PerfMonitor.Alerts.AlertEvaluator.HoldThreshold(threshold, op, frac), 3);
+
+    [Fact]
+    public void Active_alert_stays_firing_within_hold_band()
+    {
+        // rule: CPU > 80. ค่า 75 ปกติจะ clear แต่ alert active + hysteresis 10% (hold=72) → คง firing
+        var rule = new K2PerfMonitor.Data.Entities.AlertRuleEntity
+        {
+            Id = 1, Enabled = true, CollectorType = K2PerfMonitor.Core.Enums.CollectorType.ServerStats,
+            MetricField = K2PerfMonitor.Core.Constants.MetricFields.CpuPercent,
+            Operator = K2PerfMonitor.Core.Enums.ComparisonOperator.GreaterThan, Threshold = 80,
+            Severity = K2PerfMonitor.Core.Enums.Severity.Warning
+        };
+        var result = new K2PerfMonitor.Core.Results.CollectorResult
+        {
+            CollectorType = K2PerfMonitor.Core.Enums.CollectorType.ServerStats,
+            Items = new[] { new K2PerfMonitor.Core.Results.MetricItem
+            {
+                Key = "srv", MetricField = K2PerfMonitor.Core.Constants.MetricFields.CpuPercent,
+                NumericValue = 75, Payload = new Dictionary<string, object?>()
+            }}
+        };
+        var dedup = "ServerStats:CpuPercent:srv";
+
+        // ไม่มี active alert → 75 < 80 → ไม่ fire
+        Assert.Empty(K2PerfMonitor.Alerts.AlertEvaluator.Match(result, new[] { rule }));
+
+        // มี active alert + hysteresis → คง firing (75 > 72)
+        var held = K2PerfMonitor.Alerts.AlertEvaluator.Match(result, new[] { rule }, new HashSet<string> { dedup }, 0.10);
+        Assert.Single(held);
+
+        // ค่าหลุดแบนด์ (70 < 72) → clear แม้ active
+        var below = new K2PerfMonitor.Core.Results.CollectorResult
+        {
+            CollectorType = K2PerfMonitor.Core.Enums.CollectorType.ServerStats,
+            Items = new[] { new K2PerfMonitor.Core.Results.MetricItem
+            {
+                Key = "srv", MetricField = K2PerfMonitor.Core.Constants.MetricFields.CpuPercent,
+                NumericValue = 70, Payload = new Dictionary<string, object?>()
+            }}
+        };
+        Assert.Empty(K2PerfMonitor.Alerts.AlertEvaluator.Match(below, new[] { rule }, new HashSet<string> { dedup }, 0.10));
+    }
+}
+
 public class CollectorHelperTests
 {
     [Fact]

@@ -70,22 +70,49 @@ public sealed class AlertNotificationService : IAlertNotifier
 
         foreach (var provider in targets)
         {
-            try
-            {
-                if (await provider.SendAsync(message, cancellationToken))
-                {
-                    anySent = true;
-                    _logger.LogInformation("Alert {Id} sent via {Provider}", alert.Id, provider.Name);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Provider {Provider} threw sending alert {Id}", provider.Name, alert.Id);
-            }
+            if (await SendWithRetryAsync(provider, message, alert.Id, cancellationToken))
+                anySent = true;
         }
 
         if (anySent)
             await _repo.MarkAlertNotifiedAsync(alert.Id, cancellationToken);
+    }
+
+    /// <summary>retry ต่อ provider — backoff แบบ exponential (0.5s, 1s, 2s) สูงสุด 3 ครั้ง</summary>
+    private async Task<bool> SendWithRetryAsync(
+        INotificationProvider provider, NotificationMessage message, long alertId, CancellationToken ct)
+    {
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                if (await provider.SendAsync(message, ct))
+                {
+                    _logger.LogInformation("Alert {Id} sent via {Provider} (attempt {Attempt})",
+                        alertId, provider.Name, attempt);
+                    return true;
+                }
+                _logger.LogWarning("Provider {Provider} returned false for alert {Id} (attempt {Attempt}/{Max})",
+                    provider.Name, alertId, attempt, maxAttempts);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Provider {Provider} failed for alert {Id} (attempt {Attempt}/{Max})",
+                    provider.Name, alertId, attempt, maxAttempts);
+            }
+
+            if (attempt < maxAttempts)
+                await Task.Delay(TimeSpan.FromMilliseconds(500 * Math.Pow(2, attempt - 1)), ct);
+        }
+
+        _logger.LogError("Alert {Id} could not be delivered via {Provider} after {Max} attempts",
+            alertId, provider.Name, maxAttempts);
+        return false;
     }
 
     private static NotificationMessage BuildMessage(Alert alert) => new()
