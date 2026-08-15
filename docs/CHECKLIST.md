@@ -31,7 +31,8 @@
 - [x] StoredProcedureCollector (`sys.dm_exec_procedure_stats`)
 - [x] Delta/baseline snapshot handling สำหรับ DMV สะสม (`DeltaBaseline<T>` + `DeltaMath`, singleton collectors)
 - [x] `SqlCollectorBase` — resilience: source ล่ม → Success=false, ไม่ crash worker · SQL injection-safe (parameterized)
-- [x] Verify: 60 tests (unit + integration รันจริงบน SQL Server LocalDB — collect→persist→alert)
+- [x] DatabaseStatsCollector — **database discovery** (sys.databases + master_files: state/recovery/size/system-vs-user, ไม่ hard-code ชื่อ DB) + หน้า Databases
+- [x] Verify: 80 tests (unit + integration รันจริงบน SQL Server — collect→persist→alert, multi-instance isolation, database discovery)
 
 ## Phase 2 — Persistence, Retention & Rollups  ✅ (2026-08-14)
 - [x] Index/optimize ตาราง metric (index บน CollectedAtUtc + composite ทุกตาราง — มีตั้งแต่ Phase 0/1)
@@ -80,11 +81,11 @@
 - [ ] K2SmartObjectCollector (SMO call time) — รอ verify source
 - [x] 3 หน้า K2 แสดงสถานะ "รอ verify K2 source" (ไม่ใช้ mock — ตาม §5) แทน mock เดิม
 
-## Phase 8 — Auth, RBAC & Multi-Instance  🟡 (2026-08-14)
+## Phase 8 — Auth, RBAC & Multi-Instance  ✅ (2026-08-15)
 - [x] Login (cookie auth, PBKDF2 password hash) + role Admin/Operator/Viewer + seed admin จาก config (ไม่ใช้ default password)
 - [x] จำกัดสิทธิ์ Settings + Instances + Hangfire dashboard (Admin only) · global `[Authorize]` + redirect login · verified (302/200 ตาม role)
 - [x] เข้ารหัส credential (Data Protection `IDataProtector`) — ไม่ plaintext/ไม่ log · instance registry + admin UI (add/enable/delete)
-- [~] รองรับหลาย SQL/K2 instance — **registry + encrypted credentials + UI พร้อม** · การ collect ต่อ instance (fan-out worker + tag InstanceId บน metric) เป็น **scoped follow-up** (ปัจจุบัน collect จาก SourceDb ที่ config); ดู PROJECT_STATE "Known deviations"
+- [x] **รองรับหลาย SQL/K2 instance จริง** — Worker collect ต่อ instance (Default + registry ที่ enabled, decrypt), **InstanceId บนทุก metric/alert/run**, data isolation (dedup+auto-resolve+query แยกตาม instance), instance selector บน dashboard · verified integration test + compose
 
 ## Phase 9 — Packaging, Deploy & Observability  🟡 (2026-08-14)
 - [x] Dockerfile (web + worker) — multi-stage, non-root, .NET 9 runtime · **worker image build ผ่าน**

@@ -4,8 +4,10 @@ Monitoring DB (`K2PerfMonitor`) — EF Core code-first + migrations. DB เป�
 
 ## ตาราง
 
-**Metric tables** (แต่ละ collector) — index บน `CollectedAtUtc` (+ composite) สำหรับ trend + retention:
-`ServerStats`, `SlowQueries`, `ExecutionPlans`, `WaitStats`, `BlockingEvents`, `DeadlockEvents`, `IndexRecommendations`, `IoStats`, `StoredProcedureStats`, `K2WorkflowStats`, `K2SmartFormStats`, `K2SmartObjectStats`
+**Metric tables** (แต่ละ collector) — ทุกตารางมี **`InstanceId` + `InstanceName`** (multi-instance isolation) + index `(InstanceId, CollectedAtUtc)` และ `CollectedAtUtc`:
+`ServerStats`, `SlowQueries`, `ExecutionPlans`, `WaitStats`, `BlockingEvents`, `DeadlockEvents`, `IndexRecommendations`, `IoStats`, `StoredProcedureStats`, `DatabaseStats`, `K2WorkflowStats`, `K2SmartFormStats`, `K2SmartObjectStats`
+
+> `Alerts` และ `CollectorRuns` ก็มี `InstanceId`/`InstanceName` → alert dedup + auto-resolve + audit แยกตาม instance
 
 **Aggregate:** `ServerStatRollups` (5m/1h bucket, unique `(BucketMinutes, BucketStartUtc)`)
 

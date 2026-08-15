@@ -24,6 +24,26 @@ Worker ผูก Hangfire recurring job ต่อ collector ตาม `Collector
 | Index | `dm_db_missing_index_*`, `dm_db_index_usage_stats` | MissingIndexImpact | no |
 | Io | `dm_io_virtual_file_stats` | IoStallMsPerRead | **yes** |
 | StoredProcedure | `dm_exec_procedure_stats` | AvgDurationMs | no |
+| DatabaseStats | `sys.databases` + `sys.master_files` | — (informational) | no |
+
+### Multi-instance (data isolation)
+
+Worker เก็บข้อมูลต่อ **target** = Default (SourceDb ที่ config, InstanceId=0) + instance ที่ enabled ใน registry
+- แต่ละ target ใช้ DI scope + `CollectionContext` แยก (connection + InstanceId)
+- ทุก metric/alert/CollectorRun ถูก stamp **InstanceId + InstanceName** → query/filter แยกตาม instance ไม่ปนกัน
+- delta baseline (Wait/Io) และ deadlock cursor แยกตาม InstanceId (`DeltaBaselineStore`/`DeadlockCursorStore`)
+- registry connection string ถูก decrypt ด้วย Data Protection (key ring เดียวกับ Web)
+- instance หนึ่งล้ม ไม่กระทบการเก็บของ instance อื่น (แยก try/catch ต่อ target)
+
+### Database discovery (DatabaseStats)
+
+`DatabaseStatsCollector` discover database ใน target instance จาก `sys.databases` — **ไม่ hard-code ชื่อ**
+- state (ONLINE/OFFLINE/RESTORING/RECOVERY_PENDING/SUSPECT), recovery model, compatibility level
+- ขนาด data/log/total (MB) จาก `sys.master_files` (allocated)
+- policy include/exclude system database (`CollectorSchedule.IncludeSystemDatabases`)
+- **limitation:** free space ระดับไฟล์ต้อง query ต่อ database (cross-db) — ไม่ทำในรอบเดียว (documented ไม่ใส่ข้อมูลปลอม)
+- database-level association: SlowQuery/Io/Index/StoredProcedure มี `DatabaseName` อยู่แล้ว (จาก DMV);
+  ServerStats/Wait/Blocking/Deadlock เป็น server-level ตามธรรมชาติของ DMV
 
 ### CPU% — แหล่งจริง (ไม่ใช่ heuristic)
 

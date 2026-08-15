@@ -1,6 +1,6 @@
 # K2 Performance Monitor — Release Checklist
 
-**Version:** v0.9.0 · **Date:** 2026-08-14 · **Build:** Release (0 warnings) · **Tests:** 64 passed (unit + integration on SQL Server)
+**Version:** v0.9.0 · **Date:** 2026-08-15 · **Runtime:** .NET 10 · **Build:** Release (0 warnings) · **Tests:** 80 passed (unit + integration on SQL Server) · **Docker:** compose up verified
 
 ## Release gate
 
@@ -17,7 +17,8 @@
 | 9 | Dashboard real data | ✅ 9 SQL pages + Overview + Alerts (verified) |
 | 10 | K2 monitoring | ⛔ blocked external dependency — documented + PoC plan |
 | 11 | Auth/RBAC | ✅ cookie + PBKDF2 + roles + admin-only (verified) |
-| 12 | Multi-instance | 🟡 registry + encrypted creds + UI ✅ · per-instance collection = scoped follow-up |
+| 12 | Multi-instance | ✅ per-instance collection + InstanceId on every metric + isolation + selector (verified) |
+| 12b | Database monitoring | ✅ discovery (sys.databases) + per-DB size/state + Databases page (verified) |
 | 13 | Credential encryption | ✅ Data Protection (instance creds) |
 | 14 | Docker + compose | ✅ worker image build verified |
 | 15 | SQL Server compose | ✅ |
@@ -36,21 +37,24 @@
 ## Summary
 
 ```
-Project Status:    ~90% — production-ready core; 2 items documented as blocked/scoped
-Version:           v0.9.0
+Overall Status:    READY FOR UAT / EXTERNAL VALIDATION
+Version:           v0.9.0 · .NET 10
 Build:             Release, 0 warnings
-Tests:             64 passed (53 unit + 11 integration), 0 failed
-Docker:            web + worker images (multi-stage, non-root) + compose (SQL 2022)
-Security:          auth/RBAC + PBKDF2 + Data Protection creds + reviewed (no XSS/injection/secret-log)
-Known Limitations:
-  - K2 monitoring (Phase 7): blocked — needs real K2 instance to verify schema (PoC plan in docs/collectors.md)
-  - Multi-instance collection: registry+encryption+UI done; worker per-instance fan-out is scoped follow-up
-  - Notification live E2E + 24–48h load test: need real credentials/environment
+Tests:             80 passed (unit + integration on real SQL Server), 0 failed
+Docker:            web + worker images (multi-stage, non-root) + compose (SQL 2022) — compose up VERIFIED
+Security:          auth/RBAC + PBKDF2 + Data Protection creds + reviewed
+                   (no XSS/SQL-injection/secret-log; CSV-injection guarded; Newtonsoft.Json vuln patched)
+Multi-instance:    COMPLETE — per-instance collection, InstanceId on every metric, isolation, selector
+Database scope:    COMPLETE — discovery via sys.databases (no hard-coded names), per-DB size/state
+K2:                BLOCKED_EXTERNAL — needs real K2 instance to verify schema (PoC plan documented)
+Known Limitations (environment-dependent only):
+  - K2 monitoring: BLOCKED_EXTERNAL (Phase 7)
+  - Notification live E2E + 24–48h load test + UAT: need real credentials/environment
 Deployment:        docker compose up -d --build  (see docs/deployment.md)
 ```
 
-## Why not 100%
+## Why not literally "100%"
 
-ตามกฎโปรเจกต์ §16/§30/§33 — **ไม่ประกาศ 100%** เพราะยังมี item ที่ต้องพึ่งของจริงนอก repo:
-K2 instance (schema verification), real notification credentials, และการทดสอบ load 24–48h ในสภาพแวดล้อมจริง
-ส่วนที่เหลือ (core monitoring pipeline, alert, realtime, dashboard, auth, deploy) **complete + verified**
+ตามกฎโปรเจกต์ §16/§24/§33 — **ไม่ประกาศ 100%** เพราะเหลือเฉพาะ item ที่ต้องพึ่งของจริงนอก repo:
+K2 instance (schema verification, BLOCKED_EXTERNAL), real notification credentials, และ load/UAT ในสภาพแวดล้อมจริง
+ทุกอย่างที่ทำได้ใน repo/environment นี้ **COMPLETE + verified** (รวม .NET 10, multi-instance, database discovery, Docker compose)

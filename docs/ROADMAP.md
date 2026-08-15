@@ -54,10 +54,11 @@
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| สถานะ | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ⛔ | 🟡 | ✅ | ✅* |
+| สถานะ | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ⛔ | ✅ | ✅ | ✅* |
 
-✅ complete · 🟡 partial (ระบุใน [PROJECT_STATE](../PROJECT_STATE.md)) · ⛔ blocked external dependency (K2 — ต้อง verify schema จริง)
-`*` = มีส่วนที่ต้อง verify ในสภาพแวดล้อมจริง (notification credential / UAT). Build: Release 0 warnings · Tests: 64 passed
+✅ complete · ⛔ BLOCKED_EXTERNAL (K2 — ต้อง verify schema จริง)
+`*` = มีส่วนที่ต้อง verify ในสภาพแวดล้อมจริง (notification credential / UAT). **.NET 10** · Build: Release 0 warnings · Tests: 80 passed · Docker compose verified
+เพิ่มเติม: multi-instance collection (InstanceId isolation), database discovery (sys.databases) — complete
 
 ## 4. Phases (10 เฟส)
 

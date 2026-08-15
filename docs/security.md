@@ -31,6 +31,15 @@
 
 - Blazor **auto-encode** ค่าที่ render ทั้งหมด — **ไม่ใช้ `MarkupString`** กับข้อมูล user/source (query text, plan XML, deadlock XML render ใน `<pre>` แบบ encode)
 
+## CSV injection
+
+- CSV export neutralize ค่าที่ขึ้นต้นด้วย `= + - @` (หรือ tab/CR) ด้วยการ prefix `'` — กัน spreadsheet ตีความเป็นสูตร
+  (ข้อมูล query text / login name มาจาก source ที่ควบคุมไม่ได้) · มี unit test
+
+## Dependency vulnerabilities
+
+- transitive `Newtonsoft.Json` 11.0.1 (จาก Hangfire) มี high-severity vuln → pin เป็น 13.0.3 (build ไม่มี NU1903)
+
 ## Source DB permission
 
 - Collector ต้องการ `VIEW SERVER STATE` (read-only) — แนะนำสร้าง login เฉพาะ read-only (least privilege), ไม่ใช้ `sa`
