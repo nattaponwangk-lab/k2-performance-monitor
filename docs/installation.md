@@ -36,4 +36,8 @@ integration test ใช้ SQL ที่ env `MONITOR_TEST_SQL` (default `(local
 
 ## ครั้งแรก
 
-ตั้ง `Auth:InitialAdminPassword` → start Web → login `admin` → **เปลี่ยนรหัส** + สร้าง user เพิ่มตาม role
+ตั้งรหัส admin คนแรก (ไม่มี default hardcoded):
+- **local dev:** `dotnet user-secrets --project src/K2PerfMonitor.Web set "Auth:InitialAdminPassword" "<pw>"`
+- **deploy:** env `Auth__InitialAdminPassword`
+
+จากนั้น start Web → login `admin` → **เปลี่ยนรหัส** + สร้าง user เพิ่มตาม role

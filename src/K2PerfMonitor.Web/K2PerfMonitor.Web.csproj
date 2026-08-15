@@ -22,6 +22,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- local-dev secrets (initial admin password ฯลฯ) via `dotnet user-secrets` — auto-loaded ใน Development -->
+    <UserSecretsId>k2pm-web-4b1e9d3a-7c62-4f08-9a15-6d2e8b0f1c34</UserSecretsId>
   </PropertyGroup>
 
 </Project>

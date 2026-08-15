@@ -29,7 +29,7 @@ Docker/production ใช้ env เสมอ — **ห้าม hard-code secret
 
 | Key | หมายเหตุ |
 |---|---|
-| `InitialAdminPassword` | สร้าง admin คนแรก (username `admin`) เมื่อยังไม่มีผู้ใช้ · **ถ้าไม่ตั้ง จะไม่สร้าง admin** (ไม่มี default password) |
+| `InitialAdminPassword` | สร้าง admin คนแรก (username `admin`) เมื่อยังไม่มีผู้ใช้ · **ไม่มี default hardcoded** — ตั้งผ่าน env `Auth__InitialAdminPassword` (deploy) หรือ `dotnet user-secrets` (local dev) · ถ้าไม่ตั้ง จะไม่สร้าง admin |
 
 ## Data Protection (`DataProtection`)
 

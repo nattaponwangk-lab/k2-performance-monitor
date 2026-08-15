@@ -43,15 +43,22 @@ docker compose up -d --build
 
 ## เริ่มใช้งาน (local dev)
 
-ต้องมี .NET 9/10 SDK + SQL Server (หรือ LocalDB)
+ต้องมี .NET 10 SDK + SQL Server (หรือ LocalDB)
 
 ```bash
 dotnet build K2PerformanceMonitor.sln
 dotnet test  K2PerformanceMonitor.sln
 # ตั้ง connection string ใน appsettings.Development.json (ตัวอย่างชี้ LocalDB มาให้แล้ว)
+
+# ตั้งรหัสผ่าน admin คนแรก (local dev) ผ่าน user-secrets — ไม่ commit ลง repo
+dotnet user-secrets --project src/K2PerfMonitor.Web set "Auth:InitialAdminPassword" "<เลือกรหัสของคุณ>"
+
 dotnet run --project src/K2PerfMonitor.Worker    # เก็บข้อมูล
-dotnet run --project src/K2PerfMonitor.Web       # dashboard :5046
+dotnet run --project src/K2PerfMonitor.Web       # dashboard :5046  (login: admin / รหัสที่ตั้งข้างบน)
 ```
+
+> รหัสผ่าน admin คนแรกไม่มี default hardcoded — ตั้งผ่าน **user-secrets** (local) หรือ env `Auth__InitialAdminPassword` (deploy)
+> ถ้าไม่ตั้ง จะไม่สร้าง admin (ระบบ log เตือน) และเปลี่ยนรหัสหลัง login ครั้งแรก
 
 ## เอกสาร
 
