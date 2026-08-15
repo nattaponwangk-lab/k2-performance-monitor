@@ -18,7 +18,13 @@ public class AlertEntity
     /// <summary>collector ต้นเหตุ (stored as int)</summary>
     public CollectorType CollectorType { get; set; }
 
-    /// <summary>key สำหรับ dedup/group</summary>
+    /// <summary>instance ต้นเหตุ (multi-instance)</summary>
+    public long InstanceId { get; set; }
+
+    [MaxLength(128)]
+    public string InstanceName { get; set; } = "Default";
+
+    /// <summary>key สำหรับ dedup/group (รวม instanceId แล้ว)</summary>
     [MaxLength(256)]
     public string DedupKey { get; set; } = string.Empty;
 

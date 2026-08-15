@@ -131,7 +131,7 @@ public class AlertHysteresisTests
                 NumericValue = 75, Payload = new Dictionary<string, object?>()
             }}
         };
-        var dedup = "ServerStats:CpuPercent:srv";
+        var dedup = "0:ServerStats:CpuPercent:srv"; // InstanceId prefix (0 = Default)
 
         // ไม่มี active alert → 75 < 80 → ไม่ fire
         Assert.Empty(K2PerfMonitor.Alerts.AlertEvaluator.Match(result, new[] { rule }));

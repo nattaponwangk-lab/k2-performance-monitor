@@ -1,0 +1,74 @@
+@page "/databases"
+@rendermode InteractiveServer
+@inject MetricQueryService Metrics
+@inject IJSRuntime JS
+
+<PageTitle>Databases — K2 Performance Monitor</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>🗄️ Databases</h1>
+        <div class="desc">Database discovery + ขนาด/สถานะ จาก <code>sys.databases</code> (ต่อ instance ที่เลือก)
+            @if (result?.AsOfUtc is not null) { <span class="badge badge-ok">as of @result.AsOfUtc.Value.ToLocalTime().ToString("HH:mm:ss")</span> }
+        </div>
+    </div>
+    <div class="toolbar">
+        <input class="inp" placeholder="🔍 database / state" value="@grid.Search" @oninput="e => grid.SetSearch(e.Value?.ToString())" />
+        <button class="btn btn-sm btn-outline-light" @onclick="ExportCsv">⬇ CSV</button>
+        <button class="btn btn-sm btn-outline-light" @onclick="Load">↻ Refresh</button>
+    </div>
+</div>
+
+<div class="panel">
+    <StatusView T="DatabaseStatVm" Result="result">
+        <EmptyContent><div class="empty">ยังไม่มีข้อมูล database — เปิด collector DatabaseStats หรือรอรอบถัดไป</div></EmptyContent>
+        <ChildContent>
+            @{ var all = grid.Filtered(result!.Items); var rows = grid.PageOf(all); }
+            <table class="tbl">
+                <thead><tr>
+                    <th class="sortable" @onclick='() => grid.ToggleSort("name")'>Database@(grid.SortIndicator("name"))</th>
+                    <th>State</th><th>Recovery</th><th>Type</th>
+                    <th style="text-align:right">Data MB</th><th style="text-align:right">Log MB</th>
+                    <th class="sortable" style="text-align:right" @onclick='() => grid.ToggleSort("size")'>Total MB@(grid.SortIndicator("size"))</th>
+                    <th style="text-align:center">Compat</th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var d in rows)
+                    {
+                        <tr>
+                            <td><strong>@d.DatabaseName</strong></td>
+                            <td><span class="badge badge-@(d.State == "ONLINE" ? "ok" : "warning")">@d.State</span></td>
+                            <td class="mono">@d.RecoveryModel</td>
+                            <td>@(d.IsSystemDatabase ? "System" : "User")</td>
+                            <td style="text-align:right" class="mono">@d.DataSizeMb.ToString("N0")</td>
+                            <td style="text-align:right" class="mono">@d.LogSizeMb.ToString("N0")</td>
+                            <td style="text-align:right" class="mono">@d.TotalSizeMb.ToString("N0")</td>
+                            <td style="text-align:center" class="mono">@d.CompatibilityLevel</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <Pager Grid="grid" Total="all.Count" OnChanged="StateHasChanged" />
+        </ChildContent>
+    </StatusView>
+</div>
+
+@code {
+    private QueryResult<DatabaseStatVm>? result;
+    private readonly GridState<DatabaseStatVm> grid = new(
+        d => $"{d.DatabaseName} {d.State}",
+        new() { ["name"] = d => d.DatabaseName, ["size"] = d => d.TotalSizeMb }, "size");
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() { result = null; result = await Metrics.GetDatabaseStatsAsync(); }
+
+    private async Task ExportCsv()
+    {
+        if (result?.Items is null) return;
+        var csv = Csv.Build(grid.Filtered(result.Items),
+            ("Database", d => d.DatabaseName), ("State", d => d.State), ("Recovery", d => d.RecoveryModel),
+            ("IsSystem", d => d.IsSystemDatabase), ("DataMB", d => d.DataSizeMb), ("LogMB", d => d.LogSizeMb),
+            ("TotalMB", d => d.TotalSizeMb), ("Compat", d => d.CompatibilityLevel));
+        await JS.InvokeVoidAsync("k2pm.downloadFile", $"databases-{DateTime.Now:yyyyMMdd-HHmmss}.csv", csv, "text/csv");
+    }
+}

@@ -28,6 +28,12 @@ public sealed class CollectorScheduleOptions
     /// <summary>Stored procedure stats</summary>
     public int StoredProcedureIntervalSeconds { get; set; } = 120;
 
+    /// <summary>Database discovery + storage/state (sys.databases) — ไม่ต้องถี่</summary>
+    public int DatabaseStatsIntervalSeconds { get; set; } = 300;
+
+    /// <summary>รวม system database (master/model/msdb/tempdb) ใน database monitoring หรือไม่</summary>
+    public bool IncludeSystemDatabases { get; set; } = false;
+
     /// <summary>K2 collectors</summary>
     public int K2WorkflowIntervalSeconds { get; set; } = 60;
     public int K2SmartFormIntervalSeconds { get; set; } = 120;

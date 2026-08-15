@@ -12,6 +12,12 @@ public sealed class CollectorResult
     /// <summary>Collector type ที่ผลลัพธ์นี้อ้างถึง</summary>
     public required CollectorType CollectorType { get; init; }
 
+    /// <summary>instance ที่เก็บข้อมูลนี้ (multi-instance isolation) — 0 = Default (SourceDb ที่ config)</summary>
+    public long InstanceId { get; init; }
+
+    /// <summary>ชื่อ instance (แสดงผล)</summary>
+    public string InstanceName { get; init; } = "Default";
+
     /// <summary>เวลาที่เก็บข้อมูล (UTC)</summary>
     public DateTime CollectedAtUtc { get; init; } = DateTime.UtcNow;
 

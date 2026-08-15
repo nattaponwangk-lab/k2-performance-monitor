@@ -12,11 +12,13 @@ namespace K2PerfMonitor.Web.Services;
 public sealed class AlertService
 {
     private readonly IDbContextFactory<MonitorDbContext> _dbFactory;
+    private readonly InstanceFilterState _filter;
     private readonly ILogger<AlertService> _logger;
 
-    public AlertService(IDbContextFactory<MonitorDbContext> dbFactory, ILogger<AlertService> logger)
+    public AlertService(IDbContextFactory<MonitorDbContext> dbFactory, InstanceFilterState filter, ILogger<AlertService> logger)
     {
         _dbFactory = dbFactory;
+        _filter = filter;
         _logger = logger;
     }
 
@@ -24,8 +26,9 @@ public sealed class AlertService
     {
         try
         {
+            var instanceId = _filter.SelectedInstanceId;
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var q = db.Alerts.AsNoTracking().AsQueryable();
+            var q = db.Alerts.AsNoTracking().Where(a => a.InstanceId == instanceId);
             if (status is not null)
                 q = q.Where(a => a.Status == status);
 
@@ -68,9 +71,10 @@ public sealed class AlertService
     {
         try
         {
+            var instanceId = _filter.SelectedInstanceId;
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var active = await db.Alerts.CountAsync(a => a.Status != AlertStatus.Resolved);
-            var critical = await db.Alerts.CountAsync(a => a.Status != AlertStatus.Resolved && a.Severity == Severity.Critical);
+            var active = await db.Alerts.CountAsync(a => a.InstanceId == instanceId && a.Status != AlertStatus.Resolved);
+            var critical = await db.Alerts.CountAsync(a => a.InstanceId == instanceId && a.Status != AlertStatus.Resolved && a.Severity == Severity.Critical);
             return (active, critical);
         }
         catch (Exception ex)

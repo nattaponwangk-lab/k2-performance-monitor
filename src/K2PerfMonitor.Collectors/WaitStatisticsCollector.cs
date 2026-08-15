@@ -19,7 +19,7 @@ namespace K2PerfMonitor.Collectors;
 /// </summary>
 public sealed class WaitStatisticsCollector : SqlCollectorBase
 {
-    private readonly DeltaBaseline<WaitRaw> _baseline = new();
+    private readonly DeltaBaselineStore _store;
 
     public override CollectorType Type => CollectorType.WaitStatistics;
     public override string DisplayName => "Wait Statistics";
@@ -27,8 +27,10 @@ public sealed class WaitStatisticsCollector : SqlCollectorBase
     public WaitStatisticsCollector(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
+        DeltaBaselineStore store,
         ILogger<WaitStatisticsCollector> logger)
-        : base(conn, schedule, logger) { }
+        : base(conn, schedule, context, logger) => _store = store;
 
     private sealed record WaitRaw(long Tasks, double WaitMs, double SignalMs, double MaxMs);
 
@@ -51,7 +53,7 @@ public sealed class WaitStatisticsCollector : SqlCollectorBase
             ct))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-        var deltas = _baseline.Update(current, (prev, cur) => new WaitRaw(
+        var deltas = _store.Get<WaitRaw>($"Wait:{Context.InstanceId}").Update(current, (prev, cur) => new WaitRaw(
             DeltaMath.Diff(prev.Tasks, cur.Tasks),
             DeltaMath.Diff(prev.WaitMs, cur.WaitMs),
             DeltaMath.Diff(prev.SignalMs, cur.SignalMs),

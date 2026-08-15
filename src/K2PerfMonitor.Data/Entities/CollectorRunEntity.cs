@@ -16,6 +16,12 @@ public class CollectorRunEntity
     /// <summary>collector type</summary>
     public CollectorType CollectorType { get; set; }
 
+    /// <summary>instance ที่ run นี้เก็บข้อมูล (multi-instance)</summary>
+    public long InstanceId { get; set; }
+
+    [MaxLength(128)]
+    public string InstanceName { get; set; } = "Default";
+
     [MaxLength(128)]
     public string DisplayName { get; set; } = string.Empty;
 

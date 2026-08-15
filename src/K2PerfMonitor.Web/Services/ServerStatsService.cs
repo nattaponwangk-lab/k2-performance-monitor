@@ -13,11 +13,13 @@ namespace K2PerfMonitor.Web.Services;
 public class ServerStatsService
 {
     private readonly IDbContextFactory<MonitorDbContext> _dbFactory;
+    private readonly InstanceFilterState _filter;
     private readonly ILogger<ServerStatsService> _logger;
 
-    public ServerStatsService(IDbContextFactory<MonitorDbContext> dbFactory, ILogger<ServerStatsService> logger)
+    public ServerStatsService(IDbContextFactory<MonitorDbContext> dbFactory, InstanceFilterState filter, ILogger<ServerStatsService> logger)
     {
         _dbFactory = dbFactory;
+        _filter = filter;
         _logger = logger;
     }
 
@@ -28,15 +30,18 @@ public class ServerStatsService
         List<ServerStatEntity> history;
         try
         {
+            var instanceId = _filter.SelectedInstanceId;
             await using var db = await _dbFactory.CreateDbContextAsync();
 
             latest = await db.ServerStats
                 .AsNoTracking()
+                .Where(x => x.InstanceId == instanceId)
                 .OrderByDescending(x => x.CollectedAtUtc)
                 .FirstOrDefaultAsync();
 
             history = await db.ServerStats
                 .AsNoTracking()
+                .Where(x => x.InstanceId == instanceId)
                 .OrderByDescending(x => x.CollectedAtUtc)
                 .Take(30)
                 .ToListAsync();

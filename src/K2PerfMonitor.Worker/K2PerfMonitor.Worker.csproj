@@ -7,6 +7,11 @@
     <UserSecretsId>dotnet-K2PerfMonitor.Worker-714132a6-4529-47ee-9b28-845038f341ca</UserSecretsId>
   </PropertyGroup>
 
+  <!-- Data Protection (decrypt instance credentials — key ring shared with Web) -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Hangfire.NetCore" Version="1.8.23" />

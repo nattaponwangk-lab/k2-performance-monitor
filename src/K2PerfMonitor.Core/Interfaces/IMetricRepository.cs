@@ -30,6 +30,7 @@ public interface IMetricRepository
     /// <returns>จำนวน alert ที่ถูก resolve</returns>
     Task<int> ResolveMissingAsync(
         CollectorType collectorType,
+        long instanceId,
         IReadOnlyCollection<string> stillFiringDedupKeys,
         CancellationToken cancellationToken = default);
 

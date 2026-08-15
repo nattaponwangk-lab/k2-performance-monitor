@@ -49,6 +49,7 @@ builder.Services.AddDbContextFactory<MonitorDbContext>(options =>
     options.UseSqlServer(monitorConn));
 
 // Services — ข้อมูลจริงจาก Monitoring DB (แทน MockDataService ทั้งหมด — Phase 6)
+builder.Services.AddScoped<InstanceFilterState>();  // instance ที่เลือกดู (multi-instance)
 builder.Services.AddScoped<ServerStatsService>();   // Overview + CPU/RAM
 builder.Services.AddScoped<MetricQueryService>();   // SQL metric pages
 builder.Services.AddScoped<AlertService>();         // Alerts + acknowledge

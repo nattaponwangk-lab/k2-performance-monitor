@@ -17,8 +17,7 @@ namespace K2PerfMonitor.Collectors;
 /// </summary>
 public sealed class DeadlockCollector : SqlCollectorBase
 {
-    private DateTime _lastSeenUtc = DateTime.MinValue;
-    private readonly object _gate = new();
+    private readonly DeadlockCursorStore _cursor;
 
     public override CollectorType Type => CollectorType.Deadlock;
     public override string DisplayName => "Deadlocks";
@@ -26,8 +25,10 @@ public sealed class DeadlockCollector : SqlCollectorBase
     public DeadlockCollector(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
+        DeadlockCursorStore cursor,
         ILogger<DeadlockCollector> logger)
-        : base(conn, schedule, logger) { }
+        : base(conn, schedule, context, logger) => _cursor = cursor;
 
     protected override async Task<IReadOnlyList<MetricItem>> CollectItemsAsync(SqlDmvReader reader, CancellationToken ct)
     {
@@ -49,8 +50,7 @@ public sealed class DeadlockCollector : SqlCollectorBase
             return Array.Empty<MetricItem>();
         }
 
-        DateTime cutoff;
-        lock (_gate) cutoff = _lastSeenUtc;
+        var cutoff = _cursor.Get(Context.InstanceId);
 
         var items = new List<MetricItem>();
         var maxSeen = cutoff;
@@ -95,8 +95,7 @@ public sealed class DeadlockCollector : SqlCollectorBase
             });
         }
 
-        lock (_gate)
-            if (maxSeen > _lastSeenUtc) _lastSeenUtc = maxSeen;
+        _cursor.Advance(Context.InstanceId, maxSeen);
 
         return items;
     }

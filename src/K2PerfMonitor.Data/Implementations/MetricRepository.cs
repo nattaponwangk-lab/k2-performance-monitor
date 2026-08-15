@@ -59,7 +59,18 @@ public class MetricRepository : IMetricRepository
             case CollectorType.StoredProcedure:
                 SaveStoredProcedureStats(db, result);
                 break;
+            case CollectorType.DatabaseStats:
+                SaveDatabaseStats(db, result);
+                break;
             // K2 collectors (Phase 7) — implemented after source verification
+        }
+
+        // stamp InstanceId/InstanceName ให้ทุก metric row ที่เพิ่งเพิ่ม (multi-instance isolation) — ที่เดียวจบ
+        foreach (var entry in db.ChangeTracker.Entries<MetricEntityBase>())
+        {
+            if (entry.State != EntityState.Added) continue;
+            entry.Entity.InstanceId = result.InstanceId;
+            entry.Entity.InstanceName = result.InstanceName;
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -78,7 +89,7 @@ public class MetricRepository : IMetricRepository
         {
             CollectedAtUtc = result.CollectedAtUtc,
             SourceKey = "Server",
-            InstanceName = GetStr(payload, "InstanceName"),
+            SqlInstanceName = GetStr(payload, "InstanceName"),
             UptimeSeconds = GetLong(payload, "UptimeSeconds"),
             CpuPercent = GetDouble(items, MetricFields.CpuPercent),
             MemoryPercent = GetDouble(items, MetricFields.MemoryPercent),
@@ -308,6 +319,29 @@ public class MetricRepository : IMetricRepository
         }
     }
 
+    private static void SaveDatabaseStats(MonitorDbContext db, CollectorResult result)
+    {
+        foreach (var it in result.Items)
+        {
+            var p = it.Payload;
+            db.DatabaseStats.Add(new DatabaseStatEntity
+            {
+                CollectedAtUtc = result.CollectedAtUtc,
+                SourceKey = P.Str(p, "DatabaseName"),
+                DatabaseId = (int)P.Long(p, "DatabaseId"),
+                DatabaseName = P.Str(p, "DatabaseName"),
+                State = P.Str(p, "State"),
+                RecoveryModel = P.StrOrNull(p, "RecoveryModel"),
+                CompatibilityLevel = (int)P.Long(p, "CompatibilityLevel"),
+                IsSystemDatabase = P.Bool(p, "IsSystemDatabase"),
+                DataSizeMb = P.Dbl(p, "DataSizeMb"),
+                LogSizeMb = P.Dbl(p, "LogSizeMb"),
+                TotalSizeMb = P.Dbl(p, "TotalSizeMb"),
+                PayloadJson = Json(p)
+            });
+        }
+    }
+
     private static string Json(IReadOnlyDictionary<string, object?> p)
         => System.Text.Json.JsonSerializer.Serialize(p);
 
@@ -391,6 +425,7 @@ public class MetricRepository : IMetricRepository
 
     public async Task<int> ResolveMissingAsync(
         CollectorType collectorType,
+        long instanceId,
         IReadOnlyCollection<string> stillFiringDedupKeys,
         CancellationToken cancellationToken = default)
     {
@@ -398,8 +433,10 @@ public class MetricRepository : IMetricRepository
         var now = DateTime.UtcNow;
         var keys = stillFiringDedupKeys as ISet<string> ?? stillFiringDedupKeys.ToHashSet();
 
+        // auto-resolve เฉพาะ alert ของ instance นี้ (ไม่ข้ามไปปิด alert ของ instance อื่น)
         var stale = await db.Alerts
             .Where(a => a.CollectorType == collectorType
+                        && a.InstanceId == instanceId
                         && a.Status != AlertStatus.Resolved
                         && !keys.Contains(a.DedupKey))
             .ToListAsync(cancellationToken);
@@ -433,6 +470,7 @@ public class MetricRepository : IMetricRepository
         total += await db.IndexRecommendations.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
         total += await db.IoStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
         total += await db.StoredProcedureStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
+        total += await db.DatabaseStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
         total += await db.K2WorkflowStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
         total += await db.K2SmartFormStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
         total += await db.K2SmartObjectStats.Where(x => x.CollectedAtUtc < cutoff).ExecuteDeleteAsync(cancellationToken);
@@ -504,6 +542,8 @@ public class MetricRepository : IMetricRepository
     {
         RuleId = a.RuleId,
         CollectorType = a.CollectorType,
+        InstanceId = a.InstanceId,
+        InstanceName = a.InstanceName,
         DedupKey = a.DedupKey,
         Severity = a.Severity,
         Title = a.Title,
@@ -524,6 +564,8 @@ public class MetricRepository : IMetricRepository
         Id = e.Id,
         RuleId = e.RuleId,
         CollectorType = e.CollectorType,
+        InstanceId = e.InstanceId,
+        InstanceName = e.InstanceName,
         DedupKey = e.DedupKey,
         Severity = e.Severity,
         Title = e.Title,

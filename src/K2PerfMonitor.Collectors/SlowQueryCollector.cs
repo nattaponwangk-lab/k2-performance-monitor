@@ -24,8 +24,9 @@ public sealed class SlowQueryCollector : SqlCollectorBase
     public SlowQueryCollector(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
         ILogger<SlowQueryCollector> logger)
-        : base(conn, schedule, logger) { }
+        : base(conn, schedule, context, logger) { }
 
     protected override async Task<IReadOnlyList<MetricItem>> CollectItemsAsync(SqlDmvReader reader, CancellationToken ct)
     {

@@ -73,7 +73,7 @@ public sealed class AlertEvaluator : IAlertEvaluator
                 if (item.MetricField != rule.MetricField || item.NumericValue is not double value)
                     continue;
 
-                var dedupKey = $"{result.CollectorType}:{rule.MetricField}:{item.Key}";
+                var dedupKey = $"{result.InstanceId}:{result.CollectorType}:{rule.MetricField}:{item.Key}";
 
                 var fires = rule.Operator.Matches(value, rule.Threshold);
                 if (!fires)
@@ -89,6 +89,8 @@ public sealed class AlertEvaluator : IAlertEvaluator
                 {
                     RuleId = rule.Id,
                     CollectorType = rule.CollectorType,
+                    InstanceId = result.InstanceId,
+                    InstanceName = result.InstanceName,
                     DedupKey = dedupKey,
                     Severity = rule.Severity,
                     Title = string.IsNullOrWhiteSpace(rule.TitleTemplate) ? rule.Name : rule.TitleTemplate!,

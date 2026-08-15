@@ -16,5 +16,7 @@ public enum CollectorType
     StoredProcedure = 9,
     K2Workflow = 10,
     K2SmartForm = 11,
-    K2SmartObject = 12
+    K2SmartObject = 12,
+    /// <summary>database discovery + storage/state ต่อ database (sys.databases)</summary>
+    DatabaseStats = 13
 }

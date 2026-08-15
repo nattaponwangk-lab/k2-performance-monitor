@@ -23,23 +23,27 @@ public abstract class SqlCollectorBase : ICollector
 {
     private readonly ConnectionStringsOptions _conn;
     protected CollectorScheduleOptions Schedule { get; }
+    protected CollectionContext Context { get; }
     protected ILogger Logger { get; }
 
     protected SqlCollectorBase(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
         ILogger logger)
     {
         _conn = conn.Value;
         Schedule = schedule.Value;
+        Context = context;
         Logger = logger;
     }
 
     public abstract CollectorType Type { get; }
     public abstract string DisplayName { get; }
 
-    /// <summary>connection string ของ source ที่ collector นี้ใช้ (default = SourceDb)</summary>
-    protected virtual string ConnectionString => _conn.SourceDb;
+    /// <summary>connection string ของ instance ปัจจุบัน (จาก context; fallback = SourceDb ที่ config)</summary>
+    protected virtual string ConnectionString =>
+        string.IsNullOrWhiteSpace(Context.ConnectionString) ? _conn.SourceDb : Context.ConnectionString;
 
     /// <summary>command timeout (วินาที) — override ได้ต่อ collector</summary>
     protected virtual int CommandTimeoutSeconds => 30;
@@ -65,6 +69,8 @@ public abstract class SqlCollectorBase : ICollector
             return new CollectorResult
             {
                 CollectorType = Type,
+                InstanceId = Context.InstanceId,
+                InstanceName = Context.InstanceName,
                 CollectedAtUtc = started,
                 Success = true,
                 Elapsed = sw.Elapsed,
@@ -86,6 +92,8 @@ public abstract class SqlCollectorBase : ICollector
             return new CollectorResult
             {
                 CollectorType = Type,
+                InstanceId = Context.InstanceId,
+                InstanceName = Context.InstanceName,
                 CollectedAtUtc = started,
                 Success = false,
                 ErrorMessage = ex.Message,

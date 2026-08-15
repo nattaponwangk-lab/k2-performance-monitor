@@ -13,7 +13,7 @@ public class DesignTimeFactory : IDesignTimeDbContextFactory<MonitorDbContext>
     public MonitorDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<MonitorDbContext>()
-            .UseSqlServer("Server=.;Database=K2PerfMonitor;Trusted_Connection=True;TrustServerCertificate=True")
+            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=K2PerfMonitor_DesignTime;Trusted_Connection=True;TrustServerCertificate=True")
             .Options;
         return new MonitorDbContext(options);
     }

@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@inject K2PerfMonitor.Web.Services.InstanceFilterState InstanceFilter
+@inject K2PerfMonitor.Web.Services.MetricQueryService Metrics
+@inject NavigationManager Nav
 
 <div class="page">
     <div class="sidebar">
@@ -12,6 +15,17 @@
                 <span>K2 Performance Monitor</span>
             </div>
             <div class="env-tag">
+                @if (instances.Count > 0)
+                {
+                    <span style="font-size:.78rem;opacity:.7;">🖥️ Instance:</span>
+                    <select class="inp" style="min-width:150px;padding:4px 8px;" value="@InstanceFilter.SelectedInstanceId"
+                            @onchange="OnInstanceChanged">
+                        @foreach (var i in instances)
+                        {
+                            <option value="@i.InstanceId">@i.InstanceName</option>
+                        }
+                    </select>
+                }
                 <span class="badge badge-ok">● LIVE</span>
                 <span class="muted">@DateTime.Now.ToString("yyyy-MM-dd HH:mm")</span>
             </div>
@@ -28,3 +42,22 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private List<InstanceOption> instances = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        instances = (await Metrics.GetInstancesAsync()).ToList();
+        InstanceFilter.Instances = instances;
+    }
+
+    private void OnInstanceChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var id))
+        {
+            InstanceFilter.SelectedInstanceId = id;
+            Nav.Refresh(); // re-render หน้าปัจจุบัน → query ใหม่ตาม instance ที่เลือก (scoped state คงอยู่)
+        }
+    }
+}

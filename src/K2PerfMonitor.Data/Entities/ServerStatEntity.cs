@@ -8,9 +8,9 @@ namespace K2PerfMonitor.Data.Entities;
 /// </summary>
 public class ServerStatEntity : MetricEntityBase
 {
-    /// <summary>SQL Server instance name</summary>
+    /// <summary>SQL Server instance name (@@SERVERNAME) — คนละอย่างกับ monitored InstanceName ใน base</summary>
     [MaxLength(128)]
-    public string InstanceName { get; set; } = string.Empty;
+    public string SqlInstanceName { get; set; } = string.Empty;
 
     /// <summary>เวลาทำงาน (วินาที) นับจาก startup</summary>
     public long UptimeSeconds { get; set; }

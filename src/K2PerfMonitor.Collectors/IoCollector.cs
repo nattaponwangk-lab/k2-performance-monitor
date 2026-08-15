@@ -19,7 +19,7 @@ namespace K2PerfMonitor.Collectors;
 /// </summary>
 public sealed class IoCollector : SqlCollectorBase
 {
-    private readonly DeltaBaseline<IoRaw> _baseline = new();
+    private readonly DeltaBaselineStore _store;
 
     public override CollectorType Type => CollectorType.Io;
     public override string DisplayName => "I/O Statistics";
@@ -27,8 +27,10 @@ public sealed class IoCollector : SqlCollectorBase
     public IoCollector(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
+        DeltaBaselineStore store,
         ILogger<IoCollector> logger)
-        : base(conn, schedule, logger) { }
+        : base(conn, schedule, context, logger) => _store = store;
 
     private sealed record IoRaw(
         string DatabaseName, string? LogicalName, string? FileType,
@@ -64,7 +66,7 @@ public sealed class IoCollector : SqlCollectorBase
             }, ct))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-        var deltas = _baseline.Update(current, (p, c) => new IoRaw(
+        var deltas = _store.Get<IoRaw>($"Io:{Context.InstanceId}").Update(current, (p, c) => new IoRaw(
             c.DatabaseName, c.LogicalName, c.FileType,
             DeltaMath.Diff(p.Reads, c.Reads), DeltaMath.Diff(p.Writes, c.Writes),
             DeltaMath.Diff(p.BytesRead, c.BytesRead), DeltaMath.Diff(p.BytesWritten, c.BytesWritten),

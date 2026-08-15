@@ -20,8 +20,9 @@ public sealed class StoredProcedureCollector : SqlCollectorBase
     public StoredProcedureCollector(
         IOptions<ConnectionStringsOptions> conn,
         IOptions<CollectorScheduleOptions> schedule,
+        CollectionContext context,
         ILogger<StoredProcedureCollector> logger)
-        : base(conn, schedule, logger) { }
+        : base(conn, schedule, context, logger) { }
 
     protected override async Task<IReadOnlyList<MetricItem>> CollectItemsAsync(SqlDmvReader reader, CancellationToken ct)
     {

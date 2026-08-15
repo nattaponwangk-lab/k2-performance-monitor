@@ -23,6 +23,7 @@ public class MonitorDbContext : DbContext
     public DbSet<ServerStatEntity> ServerStats => Set<ServerStatEntity>();
     public DbSet<ServerStatRollupEntity> ServerStatRollups => Set<ServerStatRollupEntity>();
     public DbSet<StoredProcedureStatEntity> StoredProcedureStats => Set<StoredProcedureStatEntity>();
+    public DbSet<DatabaseStatEntity> DatabaseStats => Set<DatabaseStatEntity>();
     public DbSet<K2WorkflowStatEntity> K2WorkflowStats => Set<K2WorkflowStatEntity>();
     public DbSet<K2SmartFormStatEntity> K2SmartFormStats => Set<K2SmartFormStatEntity>();
     public DbSet<K2SmartObjectStatEntity> K2SmartObjectStats => Set<K2SmartObjectStatEntity>();
@@ -67,6 +68,9 @@ public class MonitorDbContext : DbContext
 
         ConfigureMetricTable(modelBuilder.Entity<StoredProcedureStatEntity>(), "StoredProcedureStats", e => e
             .HasIndex(x => new { x.CollectedAtUtc, x.ObjectName }));
+
+        ConfigureMetricTable(modelBuilder.Entity<DatabaseStatEntity>(), "DatabaseStats", e => e
+            .HasIndex(x => new { x.CollectedAtUtc, x.DatabaseName }));
 
         ConfigureMetricTable(modelBuilder.Entity<K2WorkflowStatEntity>(), "K2WorkflowStats", e => e
             .HasIndex(x => new { x.CollectedAtUtc, x.Status }));
@@ -125,6 +129,7 @@ public class MonitorDbContext : DbContext
         entity.ToTable(tableName);
         entity.HasKey(x => x.Id);
         entity.HasIndex(x => x.CollectedAtUtc); // สำหรับ retention purge + trend query
+        entity.HasIndex(x => new { x.InstanceId, x.CollectedAtUtc }); // multi-instance isolation query
         extra(entity);
     }
 }

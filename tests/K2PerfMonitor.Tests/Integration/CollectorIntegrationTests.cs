@@ -34,6 +34,11 @@ public class CollectorIntegrationTests
         SlowQueryThresholdMs = 0 // จับทุก query ในการทดสอบ
     });
 
+    // CollectionContext ชี้ source (LocalDB) — instance Default (0)
+    private CollectionContext Ctx => new() { InstanceId = 0, InstanceName = "Default", ConnectionString = _fx.SourceConnectionString };
+    private static readonly DeltaBaselineStore Store = new();
+    private static readonly DeadlockCursorStore Cursor = new();
+
     [SkippableFact]
     public async Task Migration_creates_schema_and_seeds_15_alert_rules()
     {
@@ -48,7 +53,7 @@ public class CollectorIntegrationTests
     public async Task ServerStats_reads_real_cpu_and_persists()
     {
         Skip.IfNot(_fx.Available, _fx.SkipReason);
-        var collector = new ServerStatsCollector(Conn, Schedule, NullLogger<ServerStatsCollector>.Instance);
+        var collector = new ServerStatsCollector(Conn, Schedule, Ctx, NullLogger<ServerStatsCollector>.Instance);
 
         var result = await collector.CollectAsync();
 
@@ -70,7 +75,7 @@ public class CollectorIntegrationTests
     public async Task SlowQuery_collector_runs_against_real_dmv()
     {
         Skip.IfNot(_fx.Available, _fx.SkipReason);
-        var collector = new SlowQueryCollector(Conn, Schedule, NullLogger<SlowQueryCollector>.Instance);
+        var collector = new SlowQueryCollector(Conn, Schedule, Ctx, NullLogger<SlowQueryCollector>.Instance);
 
         var result = await collector.CollectAsync();
 
@@ -84,7 +89,7 @@ public class CollectorIntegrationTests
     public async Task WaitStats_first_run_baselines_then_returns_deltas()
     {
         Skip.IfNot(_fx.Available, _fx.SkipReason);
-        var collector = new WaitStatisticsCollector(Conn, Schedule, NullLogger<WaitStatisticsCollector>.Instance);
+        var collector = new WaitStatisticsCollector(Conn, Schedule, Ctx, Store, NullLogger<WaitStatisticsCollector>.Instance);
 
         var first = await collector.CollectAsync();
         Assert.True(first.Success, first.ErrorMessage);
@@ -103,7 +108,7 @@ public class CollectorIntegrationTests
     public async Task Io_collector_delta_runs_and_persists()
     {
         Skip.IfNot(_fx.Available, _fx.SkipReason);
-        var collector = new IoCollector(Conn, Schedule, NullLogger<IoCollector>.Instance);
+        var collector = new IoCollector(Conn, Schedule, Ctx, Store, NullLogger<IoCollector>.Instance);
 
         var first = await collector.CollectAsync();
         Assert.True(first.Success, first.ErrorMessage);
@@ -131,11 +136,11 @@ public class CollectorIntegrationTests
         Skip.IfNot(_fx.Available, _fx.SkipReason);
         Core.Interfaces.ICollector collector = type switch
         {
-            CollectorType.Blocking => new BlockingCollector(Conn, Schedule, NullLogger<BlockingCollector>.Instance),
-            CollectorType.Index => new IndexCollector(Conn, Schedule, NullLogger<IndexCollector>.Instance),
-            CollectorType.StoredProcedure => new StoredProcedureCollector(Conn, Schedule, NullLogger<StoredProcedureCollector>.Instance),
-            CollectorType.ExecutionPlan => new ExecutionPlanCollector(Conn, Schedule, NullLogger<ExecutionPlanCollector>.Instance),
-            CollectorType.Deadlock => new DeadlockCollector(Conn, Schedule, NullLogger<DeadlockCollector>.Instance),
+            CollectorType.Blocking => new BlockingCollector(Conn, Schedule, Ctx, NullLogger<BlockingCollector>.Instance),
+            CollectorType.Index => new IndexCollector(Conn, Schedule, Ctx, NullLogger<IndexCollector>.Instance),
+            CollectorType.StoredProcedure => new StoredProcedureCollector(Conn, Schedule, Ctx, NullLogger<StoredProcedureCollector>.Instance),
+            CollectorType.ExecutionPlan => new ExecutionPlanCollector(Conn, Schedule, Ctx, NullLogger<ExecutionPlanCollector>.Instance),
+            CollectorType.Deadlock => new DeadlockCollector(Conn, Schedule, Ctx, Cursor, NullLogger<DeadlockCollector>.Instance),
             _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
 
@@ -144,6 +149,31 @@ public class CollectorIntegrationTests
 
         var repo = new MetricRepository(_fx.Factory);
         await repo.SaveResultAsync(result); // ต้องไม่ throw แม้ items ว่าง
+    }
+
+    [SkippableFact]
+    public async Task Multi_instance_metrics_are_stamped_and_isolated_by_InstanceId()
+    {
+        Skip.IfNot(_fx.Available, _fx.SkipReason);
+        var repo = new MetricRepository(_fx.Factory);
+
+        // instance 0 (Default) และ instance 7 (จำลอง) — connection เดียวกันแต่ InstanceId ต่างกัน
+        var c0 = new ServerStatsCollector(Conn, Schedule,
+            new CollectionContext { InstanceId = 0, InstanceName = "Default", ConnectionString = _fx.SourceConnectionString },
+            NullLogger<ServerStatsCollector>.Instance);
+        var c7 = new ServerStatsCollector(Conn, Schedule,
+            new CollectionContext { InstanceId = 7, InstanceName = "PROD-7", ConnectionString = _fx.SourceConnectionString },
+            NullLogger<ServerStatsCollector>.Instance);
+
+        await repo.SaveResultAsync(await c0.CollectAsync());
+        await repo.SaveResultAsync(await c7.CollectAsync());
+
+        await using var db = _fx.Factory.CreateDbContext();
+        // isolation: filter by InstanceId คืนเฉพาะ instance นั้น
+        Assert.True(await db.ServerStats.AnyAsync(x => x.InstanceId == 7 && x.InstanceName == "PROD-7"));
+        Assert.All(await db.ServerStats.Where(x => x.InstanceId == 7).ToListAsync(),
+            row => Assert.Equal("PROD-7", row.InstanceName));
+        Assert.True(await db.ServerStats.CountAsync(x => x.InstanceId == 0) >= 1);
     }
 
     [SkippableFact]

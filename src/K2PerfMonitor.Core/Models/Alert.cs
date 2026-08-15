@@ -16,7 +16,13 @@ public sealed class Alert
     /// <summary>collector ต้นเหตุ</summary>
     public CollectorType CollectorType { get; set; }
 
-    /// <summary>key สำหรับ dedup/group (เช่น query hash)</summary>
+    /// <summary>instance ต้นเหตุ (multi-instance)</summary>
+    public long InstanceId { get; set; }
+
+    /// <summary>ชื่อ instance</summary>
+    public string InstanceName { get; set; } = "Default";
+
+    /// <summary>key สำหรับ dedup/group (รวม instanceId + collector + field + itemKey)</summary>
     public string DedupKey { get; set; } = string.Empty;
 
     /// <summary>ระดับความรุนแรง</summary>

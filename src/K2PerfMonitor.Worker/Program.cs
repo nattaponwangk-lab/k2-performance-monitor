@@ -5,6 +5,8 @@ using K2PerfMonitor.Collectors;
 using K2PerfMonitor.Notifications;
 using K2PerfMonitor.Notifications.Providers;
 using K2PerfMonitor.Realtime;
+using K2PerfMonitor.Worker;
+using Microsoft.AspNetCore.DataProtection;
 using K2PerfMonitor.Core.Enums;
 using K2PerfMonitor.Core.Interfaces;
 using K2PerfMonitor.Core.Options;
@@ -57,6 +59,15 @@ builder.Services.AddSqlCollectors();
 builder.Services.AddScoped<IAlertEvaluator, AlertEvaluator>();
 builder.Services.AddScoped<CollectorJob>();
 builder.Services.AddScoped<RetentionJob>();
+
+// ---- Multi-instance: Data Protection (decrypt instance creds — key ring เดียวกับ Web) + target provider ----
+var dpKeyPath = builder.Configuration["DataProtection:KeyPath"]
+    ?? Path.Combine(AppContext.BaseDirectory, "keys");
+Directory.CreateDirectory(dpKeyPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeyPath))
+    .SetApplicationName("K2PerfMonitor");
+builder.Services.AddSingleton<ICollectionTargetProvider, CollectionTargetProvider>();
 
 // ---- Notifications (Email/Teams/LINE) — ปิดทุกช่องทางโดย default จนกว่าจะตั้ง config ----
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));

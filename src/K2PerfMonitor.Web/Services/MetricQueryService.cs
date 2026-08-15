@@ -20,16 +20,40 @@ namespace K2PerfMonitor.Web.Services;
 public sealed class MetricQueryService
 {
     private readonly IDbContextFactory<MonitorDbContext> _dbFactory;
+    private readonly InstanceFilterState _filter;
     private readonly ILogger<MetricQueryService> _logger;
 
-    public MetricQueryService(IDbContextFactory<MonitorDbContext> dbFactory, ILogger<MetricQueryService> logger)
+    public MetricQueryService(
+        IDbContextFactory<MonitorDbContext> dbFactory,
+        InstanceFilterState filter,
+        ILogger<MetricQueryService> logger)
     {
         _dbFactory = dbFactory;
+        _filter = filter;
         _logger = logger;
     }
 
-    // ---- generic latest-cycle loader ----
-    // ทุก metric entity สืบทอด MetricEntityBase → ใช้ CollectedAtUtc ตรง ๆ (แปลเป็น SQL ได้)
+    /// <summary>รายการ instance ที่มีข้อมูลจริง (จาก CollectorRuns) — สำหรับ instance selector</summary>
+    public async Task<IReadOnlyList<InstanceOption>> GetInstancesAsync()
+    {
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            return await db.CollectorRuns.AsNoTracking()
+                .Select(r => new { r.InstanceId, r.InstanceName })
+                .Distinct()
+                .OrderBy(x => x.InstanceId)
+                .Select(x => new InstanceOption(x.InstanceId, x.InstanceName))
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Cannot list instances");
+            return new List<InstanceOption> { new(0, "Default") };
+        }
+    }
+
+    // ---- generic latest-cycle loader (filter ตาม instance ที่เลือก) ----
     private async Task<QueryResult<T>> LoadLatestAsync<TEntity, T>(
         Func<MonitorDbContext, IQueryable<TEntity>> set,
         Func<TEntity, T> map,
@@ -38,8 +62,9 @@ public sealed class MetricQueryService
     {
         try
         {
+            var instanceId = _filter.SelectedInstanceId;
             await using var db = await _dbFactory.CreateDbContextAsync();
-            var q = set(db).AsNoTracking();
+            var q = set(db).AsNoTracking().Where(e => e.InstanceId == instanceId);
             if (!await q.AnyAsync())
                 return QueryResult<T>.Empty();
 
@@ -53,6 +78,20 @@ public sealed class MetricQueryService
             return QueryResult<T>.Error(ex.Message);
         }
     }
+
+    public Task<QueryResult<DatabaseStatVm>> GetDatabaseStatsAsync()
+        => LoadLatestAsync(db => db.DatabaseStats, e => new DatabaseStatVm
+        {
+            DatabaseId = e.DatabaseId,
+            DatabaseName = e.DatabaseName,
+            State = e.State,
+            RecoveryModel = e.RecoveryModel,
+            CompatibilityLevel = e.CompatibilityLevel,
+            IsSystemDatabase = e.IsSystemDatabase,
+            DataSizeMb = e.DataSizeMb,
+            LogSizeMb = e.LogSizeMb,
+            TotalSizeMb = e.TotalSizeMb
+        }, "database stats");
 
     public Task<QueryResult<SlowQueryVm>> GetSlowQueriesAsync()
         => LoadLatestAsync(db => db.SlowQueries, e => new SlowQueryVm
@@ -163,11 +202,13 @@ public sealed class MetricQueryService
     {
         try
         {
+            var instanceId = _filter.SelectedInstanceId;
             await using var db = await _dbFactory.CreateDbContextAsync();
-            if (!await db.DeadlockEvents.AnyAsync())
+            if (!await db.DeadlockEvents.AnyAsync(x => x.InstanceId == instanceId))
                 return QueryResult<DeadlockVm>.Empty();
 
             var rows = await db.DeadlockEvents.AsNoTracking()
+                .Where(x => x.InstanceId == instanceId)
                 .OrderByDescending(x => x.DeadlockAtUtc)
                 .Take(take)
                 .Select(e => new DeadlockVm

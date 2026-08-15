@@ -13,6 +13,13 @@ public abstract class MetricEntityBase
     [Key]
     public long Id { get; set; }
 
+    /// <summary>instance ที่ metric นี้มาจาก (multi-instance isolation) — 0 = Default (SourceDb ที่ config)</summary>
+    public long InstanceId { get; set; }
+
+    /// <summary>ชื่อ instance (แสดงผล/filter)</summary>
+    [MaxLength(128)]
+    public string InstanceName { get; set; } = "Default";
+
     /// <summary>เวลาที่เก็บข้อมูล (UTC) — สร้าง index</summary>
     public DateTime CollectedAtUtc { get; set; } = DateTime.UtcNow;
 
