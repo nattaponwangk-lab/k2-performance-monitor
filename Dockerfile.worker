@@ -18,8 +18,8 @@ RUN dotnet publish src/K2PerfMonitor.Worker/K2PerfMonitor.Worker.csproj -c Relea
 # Worker ต้องมี ASP.NET runtime (Realtime มี FrameworkReference Microsoft.AspNetCore.App)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-RUN adduser --disabled-password --gecos "" appuser
 COPY --from=build /app ./
+RUN mkdir -p /app/keys /app/logs && chown -R app:app /app/keys /app/logs
 ENV DOTNET_ENVIRONMENT=Production
-USER appuser
+USER app
 ENTRYPOINT ["dotnet", "K2PerfMonitor.Worker.dll"]

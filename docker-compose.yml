@@ -35,6 +35,10 @@ services:
       ConnectionStrings__K2Db:      "Server=sqlserver;Database=master;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True"
       SignalR__Enabled: "true"
       SignalR__HubUrl: "http://web:8080/hubs/monitor"
+      # ใช้ Data Protection key ring เดียวกับ Web (decrypt instance credentials)
+      DataProtection__KeyPath: "/app/keys"
+    volumes:
+      - dp-keys:/app/keys
     restart: unless-stopped
 
   # ---- Web: Blazor dashboard + SignalR hub ----

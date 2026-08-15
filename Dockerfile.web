@@ -20,11 +20,11 @@ RUN dotnet publish src/K2PerfMonitor.Web/K2PerfMonitor.Web.csproj -c Release -o 
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-# run แบบ non-root (secure by default)
-RUN adduser --disabled-password --gecos "" appuser
 COPY --from=build /app ./
+# ใช้ non-root user 'app' ที่ .NET image เตรียมไว้ + ให้เขียน keys/logs ได้ (secure by default)
+RUN mkdir -p /app/keys /app/logs && chown -R app:app /app/keys /app/logs
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
-USER appuser
+USER app
 ENTRYPOINT ["dotnet", "K2PerfMonitor.Web.dll"]

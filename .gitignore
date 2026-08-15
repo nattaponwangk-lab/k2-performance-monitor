@@ -51,3 +51,6 @@ desktop.ini
 # Data Protection keys (sensitive — never commit)
 **/keys/
 keys/
+
+# local-only compose overrides
+docker-compose.override.yml
