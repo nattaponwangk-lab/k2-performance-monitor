@@ -47,5 +47,67 @@ jobs:
       - name: Build
         run: dotnet build K2PerformanceMonitor.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test K2PerformanceMonitor.sln --configuration Release --no-build --verbosity normal
+      - name: Test (with TRX results)
+        id: test
+        # override default 'bash -eo pipefail' → ต้อง parse ผล + เขียน summary เสมอ แม้ test ล้ม แล้วค่อย gate เอง
+        shell: bash --noprofile --norc {0}
+        run: |
+          dotnet test K2PerformanceMonitor.sln --configuration Release --no-build --verbosity normal \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory "$GITHUB_WORKSPACE/TestResults"
+          TEST_EXIT=$?
+
+          TRX=$(find "$GITHUB_WORKSPACE/TestResults" -name '*.trx' | head -n1)
+          if [ -z "$TRX" ]; then
+            echo "::error::No TRX results file produced by dotnet test"
+            exit 1
+          fi
+
+          # ---- overall counts (จาก ResultSummary/Counters — ค่าจริง ไม่ใช่การเดา) ----
+          COUNTERS=$(grep -o '<Counters[^>]*>' "$TRX" | head -n1)
+          val() { echo "$COUNTERS" | grep -oP "(?<= $1=\")[0-9]+" || echo 0; }
+          TOTAL=$(val total)
+          PASSED=$(val passed)
+          FAILED=$(val failed)
+          SKIPPED=$(val notExecuted)   # notExecuted = skipped
+
+          # ---- integration suite (ระบุชัดด้วย namespace K2PerfMonitor.Tests.Integration) ----
+          INT_RESULTS=$(grep -o '<UnitTestResult[^>]*>' "$TRX" | grep '\.Tests\.Integration\.' || true)
+          INT_PASSED=$(printf '%s\n' "$INT_RESULTS" | grep -c 'outcome="Passed"' || true)
+          INT_SKIPPED=$(printf '%s\n' "$INT_RESULTS" | grep -c 'outcome="NotExecuted"' || true)
+          INT_FAILED=$(printf '%s\n' "$INT_RESULTS" | grep -c 'outcome="Failed"' || true)
+          [ -z "$INT_RESULTS" ] && { INT_PASSED=0; INT_SKIPPED=0; INT_FAILED=0; }
+
+          if [ "$INT_PASSED" -gt 0 ] && [ "$INT_SKIPPED" -eq 0 ] && [ "$INT_FAILED" -eq 0 ]; then
+            SQL_ENV="AVAILABLE"; INT_STATE="EXECUTED"
+          else
+            SQL_ENV="UNAVAILABLE"; INT_STATE="NOT EXECUTED / SKIPPED"
+          fi
+
+          # ---- job summary (มองเห็นได้ใน Actions Summary โดยไม่ต้อง sign-in) ----
+          {
+            echo "## Test Results — proof of execution"
+            echo ""
+            echo "| Check | Value |"
+            echo "|---|---|"
+            echo "| SQL Server integration environment | **$SQL_ENV** |"
+            echo "| Integration tests | **$INT_STATE** |"
+            echo "| Total | $TOTAL |"
+            echo "| Passed | $PASSED |"
+            echo "| Failed | $FAILED |"
+            echo "| Skipped | $SKIPPED |"
+            echo "| Integration passed (K2PerfMonitor.Tests.Integration) | $INT_PASSED |"
+            echo "| Integration skipped | $INT_SKIPPED |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Total=$TOTAL Passed=$PASSED Failed=$FAILED Skipped=$SKIPPED | IntPassed=$INT_PASSED IntSkipped=$INT_SKIPPED IntFailed=$INT_FAILED | dotnet_exit=$TEST_EXIT"
+
+          # ---- gates: CI ต้องแดงถ้ามี fail/skip/total=0/integration ไม่ได้รัน ----
+          FAIL=0
+          [ "$TEST_EXIT" -ne 0 ] && { echo "::error::dotnet test exited $TEST_EXIT"; FAIL=1; }
+          [ "$FAILED"  -gt 0 ]  && { echo "::error::$FAILED test(s) failed"; FAIL=1; }
+          [ "$SKIPPED" -gt 0 ]  && { echo "::error::$SKIPPED test(s) skipped — CI requires ZERO skipped"; FAIL=1; }
+          [ "$TOTAL"   -eq 0 ]  && { echo "::error::Total test count is 0"; FAIL=1; }
+          [ "$INT_PASSED" -eq 0 ] && { echo "::error::No integration tests executed — SQL Server availability not proven"; FAIL=1; }
+          [ "$INT_SKIPPED" -gt 0 ] && { echo "::error::$INT_SKIPPED integration test(s) skipped"; FAIL=1; }
+          exit $FAIL
